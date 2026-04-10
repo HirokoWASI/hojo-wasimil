@@ -3,9 +3,6 @@ import FirecrawlApp from '@mendable/firecrawl-js'
 import Anthropic from '@anthropic-ai/sdk'
 import { createServiceClient } from '@/lib/supabase/server'
 
-const firecrawl = new FirecrawlApp({ apiKey: process.env.FIRECRAWL_API_KEY ?? '' })
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-
 const EXTRACT_PROMPT = `あなたは日本の補助金・助成金の専門家です。
 提供されたウェブページのテキストから補助金情報を抽出し、必ず以下のJSON形式のみで回答してください。
 補助金・助成金の情報が見つからない場合は {"found": false} のみを返してください。
@@ -38,6 +35,8 @@ export async function GET(req: NextRequest) {
     return new Response('Unauthorized', { status: 401 })
   }
 
+  const firecrawl = new FirecrawlApp({ apiKey: process.env.FIRECRAWL_API_KEY ?? '' })
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
   const supabase = createServiceClient()
   const { data: sources } = await supabase
     .from('subsidy_sources')
