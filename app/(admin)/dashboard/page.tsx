@@ -90,8 +90,9 @@ export default async function DashboardPage() {
   const adopted = apps.filter((a: any) => a.status === '採択済').length
   const inProgress = apps.filter((a: any) => !['採択済', '不採択'].includes(a.status)).length
   const totalAdoptedAmt = apps
-    .filter((a: any) => a.status === '採択済' && a.amount)
+    .filter((a: any) => a.status === '採択済')
     .reduce((sum: number, a: any) => {
+      if (a.subsidy_amount) return sum + Math.round(Number(a.subsidy_amount) / 10000)
       const n = parseInt((a.amount ?? '0').replace(/[^0-9]/g, ''), 10)
       return sum + (isNaN(n) ? 0 : n)
     }, 0)
@@ -101,7 +102,7 @@ export default async function DashboardPage() {
       const days = Math.ceil((new Date(a.deadline).getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
       return { level: days <= 7 ? 'high' : 'mid', msg: `${a.clients?.name} — 申請期限まで${days}日` }
     }),
-    { level: 'info', msg: 'IT導入補助金2025 第3次公募 開始予定（5月）' },
+    { level: 'info', msg: 'デジタル化・AI導入補助金2026 第3次締切 6月30日' },
   ]
 
   const statCards = [

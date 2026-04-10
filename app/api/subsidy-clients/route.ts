@@ -5,6 +5,25 @@ import { createClient as createSalesClient } from '@supabase/supabase-js'
 const SALES_SUPABASE_URL = process.env.SALES_SUPABASE_URL ?? ''
 const SALES_SUPABASE_KEY = process.env.SALES_SUPABASE_SERVICE_KEY ?? ''
 
+const REQUIRED_DOCS = [
+  '履歴事項全部証明書',
+  '法人税納税証明書',
+  '事業計画書',
+  '見積書（AZOO発行）',
+  'gBizIDプライム確認',
+]
+
+async function createRequiredDocs(supabase: ReturnType<typeof createServiceClient>, applicationId: string) {
+  await supabase.from('documents').insert(
+    REQUIRED_DOCS.map(name => ({
+      application_id: applicationId,
+      name,
+      required: true,
+      status: '未提出',
+    }))
+  )
+}
+
 // GET: Sales Pipeline の deals を取得（同期候補）
 export async function GET(req: NextRequest) {
   const mode = req.nextUrl.searchParams.get('mode')
@@ -116,6 +135,8 @@ export async function POST(req: NextRequest) {
 
     if (appErr) return NextResponse.json({ error: appErr.message }, { status: 500 })
 
+    await createRequiredDocs(supabase, app.id)
+
     return NextResponse.json({ success: true, clientId: client.id, applicationId: app.id })
   }
 
@@ -152,6 +173,8 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (appErr) return NextResponse.json({ error: appErr.message }, { status: 500 })
+
+  await createRequiredDocs(supabase, app.id)
 
   return NextResponse.json({ success: true, clientId: client.id, applicationId: app.id })
 }
