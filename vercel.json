@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/deadline-alert",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/collect-subsidies",
+      "schedule": "0 0 * * 1"
     }
   ]
 }
