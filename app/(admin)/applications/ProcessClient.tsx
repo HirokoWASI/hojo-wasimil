@@ -753,8 +753,10 @@ function ClientInfoTab({ client, onSaved }: { client: AppRow; onSaved: (c?: Part
     capital_amount: client.clients.capital_amount ?? '',
     room_count: client.clients.room_count?.toString() ?? '',
     corporate_number: client.clients.corporate_number ?? '',
-    gbiz_id: client.clients.gbiz_id ?? '',
     // app fields
+    gbiz_id_status: client.gbiz_id_status ?? '未取得',
+    security_action_done: client.security_action_done ?? false,
+    miradeji_done: client.miradeji_done ?? false,
     cs_name: client.cs_name ?? '',
     cs_email: client.cs_email ?? '',
     amount: client.amount ?? '',
@@ -781,18 +783,21 @@ function ClientInfoTab({ client, onSaved }: { client: AppRow; onSaved: (c?: Part
             employee_count: f.employee_count ? parseInt(f.employee_count) : null,
             capital_amount: f.capital_amount || null,
             room_count: f.room_count ? parseInt(f.room_count) : null,
-            corporate_number: f.corporate_number || null, gbiz_id: f.gbiz_id || null,
+            corporate_number: f.corporate_number || null,
           },
           appFields: {
             cs_name: f.cs_name || null, cs_email: f.cs_email || null,
             amount: f.amount || null, subsidy_frame: f.subsidy_frame || null,
             notes: f.notes || null,
+            gbiz_id_status: f.gbiz_id_status,
+            security_action_done: f.security_action_done,
+            miradeji_done: f.miradeji_done,
           },
         }),
       })
       onSaved(
-        { name: f.name, contact_name: f.contact_name || null, email: f.email, phone: f.phone || null, facility_name: f.facility_name || null, employee_count: f.employee_count ? parseInt(f.employee_count) : null, capital_amount: f.capital_amount || null, room_count: f.room_count ? parseInt(f.room_count) : null, industry: f.industry || null, corporate_number: f.corporate_number || null, gbiz_id: f.gbiz_id || null, representative_name: f.representative_name || null, address: f.address || null, portal_token: client.clients.portal_token, token_expires_at: client.clients.token_expires_at },
-        { cs_name: f.cs_name || null, cs_email: f.cs_email || null, amount: f.amount || null, subsidy_frame: f.subsidy_frame || null, notes: f.notes || null } as Partial<Application>,
+        { name: f.name, contact_name: f.contact_name || null, email: f.email, phone: f.phone || null, facility_name: f.facility_name || null, employee_count: f.employee_count ? parseInt(f.employee_count) : null, capital_amount: f.capital_amount || null, room_count: f.room_count ? parseInt(f.room_count) : null, industry: f.industry || null, corporate_number: f.corporate_number || null, gbiz_id: null, representative_name: f.representative_name || null, address: f.address || null, portal_token: client.clients.portal_token, token_expires_at: client.clients.token_expires_at },
+        { cs_name: f.cs_name || null, cs_email: f.cs_email || null, amount: f.amount || null, subsidy_frame: f.subsidy_frame || null, notes: f.notes || null, gbiz_id_status: f.gbiz_id_status, security_action_done: f.security_action_done, miradeji_done: f.miradeji_done } as Partial<Application>,
       )
     } finally { setSaving(false) }
   }
@@ -831,7 +836,30 @@ function ClientInfoTab({ client, onSaved }: { client: AppRow; onSaved: (c?: Part
         <div><label style={lbl}>客室数</label><input type="number" value={f.room_count} onChange={e => set('room_count', e.target.value)} placeholder="例: 25" style={inp} /></div>
         <div><label style={lbl}>資本金</label><input value={f.capital_amount} onChange={e => set('capital_amount', e.target.value)} placeholder="例: 1000万円" style={inp} /></div>
         <div><label style={lbl}>法人番号</label><input value={f.corporate_number} onChange={e => set('corporate_number', e.target.value)} placeholder="13桁" style={inp} /></div>
-        <div><label style={lbl}>gBizID</label><input value={f.gbiz_id} onChange={e => set('gbiz_id', e.target.value)} placeholder="取得済みの場合入力" style={inp} /></div>
+      </div>
+
+      <div style={{ fontSize: 12, fontWeight: 700, color: C.ink, marginBottom: 8, borderBottom: `1px solid ${C.border}`, paddingBottom: 6 }}>申請前の準備状況</div>
+      <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' as const }}>
+        {[
+          { key: 'gbiz_id_status', label: 'gBizIDプライム', options: ['未取得', '申請中', '取得済'] },
+        ].map(item => (
+          <div key={item.key} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <span style={{ fontSize: 12, color: C.inkMid, minWidth: 110 }}>{item.label}</span>
+            <select value={f.gbiz_id_status} onChange={e => set('gbiz_id_status', e.target.value)} style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6, padding: '5px 10px', fontSize: 12, fontFamily: 'inherit', color: f.gbiz_id_status === '取得済' ? C.green : f.gbiz_id_status === '申請中' ? C.yellow : C.inkFaint, fontWeight: 700, outline: 'none' }}>
+              {item.options.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </div>
+        ))}
+        {[
+          { key: 'security_action_done', label: 'SECURITY ACTION', checked: f.security_action_done },
+          { key: 'miradeji_done', label: 'みらデジ経営チェック', checked: f.miradeji_done },
+        ].map(item => (
+          <label key={item.key} style={{ display: 'flex', gap: 6, alignItems: 'center', cursor: 'pointer', fontSize: 12, color: item.checked ? C.green : C.inkMid }}>
+            <input type="checkbox" checked={item.checked} onChange={e => setF(prev => ({ ...prev, [item.key]: e.target.checked }))} style={{ accentColor: C.green, width: 15, height: 15, cursor: 'pointer' }} />
+            <span style={{ fontWeight: item.checked ? 700 : 400 }}>{item.label}</span>
+            <span style={{ fontSize: 10, color: item.checked ? C.green : C.inkFaint }}>{item.checked ? '完了' : '未実施'}</span>
+          </label>
+        ))}
       </div>
 
       <div style={{ fontSize: 12, fontWeight: 700, color: C.ink, marginBottom: 8, borderBottom: `1px solid ${C.border}`, paddingBottom: 6 }}>申請情報</div>
