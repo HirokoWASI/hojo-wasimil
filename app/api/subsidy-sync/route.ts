@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
 
   for (const source of sources) {
     try {
-      const scraped = await firecrawl.scrapeUrl(source.url, { formats: ['markdown'] }) as { markdown?: string }
+      const scraped = await firecrawl.scrape(source.url, { formats: ['markdown'] }) as { markdown?: string }
       const content = scraped.markdown ?? ''
       if (!content || content.length < 100) {
         results.push({ sourceId: source.id, sourceName: source.name, status: 'ページ内容なし' })

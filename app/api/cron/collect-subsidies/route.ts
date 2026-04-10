@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
   for (const source of sources) {
     try {
       // Firecrawl でページをスクレイプ
-      const scraped = await firecrawl.scrapeUrl(source.url, {
+      const scraped = await firecrawl.scrape(source.url, {
         formats: ['markdown'],
       }) as { markdown?: string; success?: boolean }
 
