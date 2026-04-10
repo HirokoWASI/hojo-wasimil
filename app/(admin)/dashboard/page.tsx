@@ -162,7 +162,7 @@ export default async function DashboardPage() {
               return (
                 <tr key={a.id} style={{ borderTop: `1px solid ${C.border}` }}>
                   <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 600 }}>
-                    <Link href={`/applications/${a.id}`} style={{ color: C.ink, textDecoration: 'none' }}>
+                    <Link href={`/applications?sel=${a.id}`} style={{ color: C.ink, textDecoration: 'none' }}>
                       {a.clients?.name ?? '—'}
                     </Link>
                   </td>

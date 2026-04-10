@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Application, Document, EmailLog } from '@/types/database'
 
@@ -67,8 +68,10 @@ function GhostBtn({ label, onClick, style: extraStyle }: { label: string; onClic
 }
 
 export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }) {
+  const searchParams = useSearchParams()
+  const initialSel = searchParams.get('sel')
   const [apps, setApps] = useState<AppRow[]>(initialApps)
-  const [selId, setSelId] = useState<string>(initialApps[0]?.id ?? '')
+  const [selId, setSelId] = useState<string>(initialSel && initialApps.some(a => a.id === initialSel) ? initialSel : initialApps[0]?.id ?? '')
   const [view, setView] = useState<'admin' | 'portal'>('admin')
   const [uploadDocId, setUploadDocId] = useState<string | null>(null)
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
