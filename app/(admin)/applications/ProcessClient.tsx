@@ -394,37 +394,72 @@ export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }
           </div>
 
           {/* 採択後フロートラッカー */}
-          {client.status === '採択済' && (
-            <div style={{ background: C.surface, border: `1px solid ${C.greenBorder}`, borderRadius: 12, padding: '16px 20px' }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: C.green, marginBottom: 12 }}>採択後プロセス</div>
-              <div style={{ display: 'flex', gap: 0, alignItems: 'center', marginBottom: 10, overflowX: 'auto' }}>
-                {POST_GRANT_STEPS.map((step, i) => {
-                  const currentIdx = POST_GRANT_STEPS.indexOf(client.post_grant_status as any)
-                  const isDone = currentIdx >= 0 && i < currentIdx
-                  const isCurrent = client.post_grant_status === step
-                  return (
-                    <div key={step} style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-                      <button onClick={async () => {
-                        await supabase.from('applications').update({ post_grant_status: step }).eq('id', client.id)
-                        setApps(prev => prev.map(a => a.id === client.id ? { ...a, post_grant_status: step } as AppRow : a))
-                        showToast(`${step} に更新しました`)
-                      }} style={{ width: 28, height: 28, borderRadius: '50%', border: 'none', background: isDone ? C.green : isCurrent ? C.accent : C.border, color: isDone || isCurrent ? '#fff' : C.inkFaint, fontSize: 10, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        {isDone ? '✓' : i + 1}
-                      </button>
-                      {i < POST_GRANT_STEPS.length - 1 && <div style={{ width: 16, height: 2, background: isDone ? C.green : C.border }} />}
-                    </div>
-                  )
-                })}
+          {client.status === '採択済' && (() => {
+            const currentIdx = POST_GRANT_STEPS.indexOf(client.post_grant_status as any)
+            const stepDetails: Record<string, { title: string; desc: string; checklist: string[] }> = {
+              '交付決定': { title: '交付決定', desc: '交付決定通知を受領。この後にWASIMILの契約・発注を行います。', checklist: ['交付決定通知の受領確認', 'WASIMIL契約書の準備', '発注書の作成'] },
+              '事業実施': { title: '事業実施（WASIMIL導入）', desc: '交付決定後にWASIMILの契約・導入・運用開始を行います。交付決定前の発注は不可。', checklist: ['WASIMILの契約・発注（交付決定後）', 'システム導入・初期設定', 'スタッフ研修の実施', '運用開始の確認', '導入完了のスクリーンショット保存'] },
+              '実績報告': { title: '実績報告', desc: '事業完了後、発注・納品・支払いの証憑を提出して実績報告を行います。', checklist: ['契約書の写し', '発注書・納品書', '支払い証憑（銀行振込明細等）', '導入完了のスクリーンショット', '実績報告書の提出（申請マイページ）'] },
+              '補助金入金': { title: '補助金入金', desc: '確定検査後、補助金が指定口座に振り込まれます。', checklist: ['確定検査の承認確認', '補助金入金の確認', '入金額の照合'] },
+              '効果報告1年目': { title: '効果報告（1年目）', desc: '補助事業完了後、労働生産性の向上度合いを年次で報告します。', checklist: ['労働生産性の算出（付加価値額÷従業員数）', '事業計画KPIの達成状況', '効果報告書の提出'] },
+              '効果報告2年目': { title: '効果報告（2年目）', desc: '引き続き効果報告を提出します。賃上げ要件がある場合は達成状況も報告。', checklist: ['労働生産性の前年比較', '賃上げ目標の達成確認（該当する場合）', '効果報告書の提出'] },
+              '効果報告3年目': { title: '効果報告（3年目）', desc: '最終年度の効果報告です。未達の場合は補助金返還の可能性があります。', checklist: ['労働生産性の3年間推移', '事業計画の最終評価', '効果報告書の提出'] },
+              '完了': { title: '完了', desc: 'すべての報告義務が完了しました。', checklist: [] },
+            }
+            const currentStepInfo = client.post_grant_status ? stepDetails[client.post_grant_status] : null
+            return (
+              <div style={{ background: C.surface, border: `1px solid ${C.greenBorder}`, borderRadius: 12, padding: '16px 20px' }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: C.green, marginBottom: 12 }}>採択後プロセス管理</div>
+                {/* ステッパー */}
+                <div style={{ display: 'flex', gap: 0, alignItems: 'center', marginBottom: 6, overflowX: 'auto', paddingBottom: 4 }}>
+                  {POST_GRANT_STEPS.map((step, i) => {
+                    const isDone = currentIdx >= 0 && i < currentIdx
+                    const isCurrent = client.post_grant_status === step
+                    return (
+                      <div key={step} style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                        <button onClick={async () => {
+                          await supabase.from('applications').update({ post_grant_status: step }).eq('id', client.id)
+                          setApps(prev => prev.map(a => a.id === client.id ? { ...a, post_grant_status: step } as AppRow : a))
+                          showToast(`${step} に更新`)
+                        }} title={step} style={{ width: 28, height: 28, borderRadius: '50%', border: isCurrent ? `2px solid ${C.accent}` : 'none', background: isDone ? C.green : isCurrent ? C.accentBg : C.bg, color: isDone ? '#fff' : isCurrent ? C.accent : C.inkFaint, fontSize: 10, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {isDone ? '✓' : i + 1}
+                        </button>
+                        {i < POST_GRANT_STEPS.length - 1 && <div style={{ width: 14, height: 2, background: isDone ? C.green : C.border }} />}
+                      </div>
+                    )
+                  })}
+                </div>
+                <div style={{ display: 'flex', gap: 3, marginBottom: 12, overflowX: 'auto' }}>
+                  {POST_GRANT_STEPS.map((step, i) => (
+                    <span key={step} style={{ fontSize: 8, color: client.post_grant_status === step ? C.accent : (currentIdx >= 0 && i < currentIdx) ? C.green : C.inkFaint, fontWeight: client.post_grant_status === step ? 700 : 400, whiteSpace: 'nowrap' as const, minWidth: 32, textAlign: 'center' as const }}>{step.replace('効果報告', '効果').replace('年目', '年')}</span>
+                  ))}
+                </div>
+                {/* 現在のステップ詳細 */}
+                {currentStepInfo && (
+                  <div style={{ background: C.accentBg, border: `1px solid ${C.accentBorder}`, borderRadius: 10, padding: '14px 16px' }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: C.accent, marginBottom: 4 }}>{currentStepInfo.title}</div>
+                    <div style={{ fontSize: 12, color: C.inkMid, lineHeight: 1.6, marginBottom: 10 }}>{currentStepInfo.desc}</div>
+                    {currentStepInfo.checklist.length > 0 && (
+                      <div>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: C.inkMid, marginBottom: 4 }}>対応事項:</div>
+                        {currentStepInfo.checklist.map((item, i) => (
+                          <div key={i} style={{ fontSize: 12, color: C.inkMid, padding: '3px 0', display: 'flex', gap: 6 }}>
+                            <span style={{ color: C.inkFaint }}>□</span>{item}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {/* メモ */}
+                {client.post_grant_notes && (
+                  <div style={{ marginTop: 8, fontSize: 12, color: C.inkMid, background: C.bg, borderRadius: 8, padding: '8px 12px', border: `1px solid ${C.border}` }}>
+                    <span style={{ fontWeight: 600, color: C.ink }}>メモ: </span>{client.post_grant_notes}
+                  </div>
+                )}
               </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 4 }}>
-                {POST_GRANT_STEPS.map((step, i) => {
-                  const currentIdx = POST_GRANT_STEPS.indexOf(client.post_grant_status as any)
-                  const isCurrent = client.post_grant_status === step
-                  return <span key={step} style={{ fontSize: 9, color: isCurrent ? C.accent : (currentIdx >= 0 && i < currentIdx) ? C.green : C.inkFaint, fontWeight: isCurrent ? 700 : 400, whiteSpace: 'nowrap' as const }}>{step}</span>
-                })}
-              </div>
-            </div>
-          )}
+            )
+          })()}
 
           {/* ポータルURL */}
           <PortalUrlCard client={client} onTokenGenerated={(token, expires) => {
