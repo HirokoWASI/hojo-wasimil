@@ -1,22 +1,31 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Message } from '@/types/database'
 
 export function useChat(applicationId: string) {
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
+  const supabaseRef = useRef(createClient())
 
   useEffect(() => {
+    const supabase = supabaseRef.current
+    let cancelled = false
+
     supabase
       .from('messages')
       .select('*')
       .eq('application_id', applicationId)
       .order('created_at', { ascending: true })
-      .then(({ data }) => {
-        if (data) setMessages(data as Message[])
+      .then(({ data, error }) => {
+        if (cancelled) return
+        if (error) {
+          console.error('messages fetch error:', error)
+          setMessages([])
+        } else {
+          setMessages((data ?? []) as Message[])
+        }
         setLoading(false)
       })
 
@@ -37,15 +46,17 @@ export function useChat(applicationId: string) {
       .subscribe()
 
     return () => {
+      cancelled = true
       supabase.removeChannel(channel)
     }
   }, [applicationId])
 
-  async function sendMessage(
+  const sendMessage = useCallback(async (
     content: string,
     senderType: 'customer' | 'cs',
     senderName: string
-  ) {
+  ) => {
+    const supabase = supabaseRef.current
     const { data, error } = await supabase
       .from('messages')
       .insert({
@@ -59,7 +70,7 @@ export function useChat(applicationId: string) {
 
     if (error) throw error
     return data
-  }
+  }, [applicationId])
 
   return { messages, sendMessage, loading }
 }

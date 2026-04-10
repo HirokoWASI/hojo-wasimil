@@ -15,7 +15,7 @@ const C = {
 } as const
 
 type AppWithClient = Application & {
-  clients: { name: string; email: string; contact_name: string | null }
+  clients?: { name: string; email: string; contact_name: string | null } | null
 }
 
 interface Props {
