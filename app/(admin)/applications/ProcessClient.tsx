@@ -34,7 +34,7 @@ const DOC_STATUS_CFG: Record<string, { color: string; bg: string; border: string
 }
 
 export type AppRow = Application & {
-  clients: { name: string; email: string; contact_name: string | null }
+  clients: { name: string; email: string; contact_name: string | null; portal_token: string | null; token_expires_at: string | null }
   docs: Document[]
   alerts: EmailLog[]
   daysLeft: number | null
@@ -300,6 +300,13 @@ export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }
             </div>
           </div>
 
+          {/* ポータルURL */}
+          {view === 'admin' && (
+            <PortalUrlCard client={client} onTokenGenerated={(token, expires) => {
+              setApps(prev => prev.map(a => a.id === client.id ? { ...a, clients: { ...a.clients, portal_token: token, token_expires_at: expires } } : a))
+            }} />
+          )}
+
           {/* ── 管理画面 ── */}
           {view === 'admin' && (
             <>
@@ -557,6 +564,77 @@ export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }
               <GhostBtn label="キャンセル" onClick={() => setShowReturnModal(null)} />
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---- ポータルURLカード ----
+function PortalUrlCard({ client, onTokenGenerated }: { client: AppRow; onTokenGenerated: (token: string, expires: string) => void }) {
+  const [generating, setGenerating] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  const portalToken = client.clients.portal_token
+  const expiresAt = client.clients.token_expires_at
+  const isExpired = expiresAt ? new Date(expiresAt) < new Date() : false
+  const appUrl = typeof window !== 'undefined' ? window.location.origin : ''
+  const portalUrl = portalToken ? `${appUrl}/portal/${portalToken}` : null
+
+  async function generateToken() {
+    setGenerating(true)
+    try {
+      const res = await fetch('/api/generate-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId: client.client_id, expiryDays: 90 }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        onTokenGenerated(data.token, data.expiresAt)
+      }
+    } finally { setGenerating(false) }
+  }
+
+  function copyUrl() {
+    if (!portalUrl) return
+    navigator.clipboard.writeText(portalUrl)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '16px 20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+      <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+        🔗 お客様ポータルURL
+        {portalUrl && !isExpired && <span style={{ fontSize: 10, background: C.greenBg, color: C.green, padding: '2px 8px', borderRadius: 8, fontWeight: 600 }}>有効</span>}
+        {isExpired && <span style={{ fontSize: 10, background: C.redBg, color: C.red, padding: '2px 8px', borderRadius: 8, fontWeight: 600 }}>期限切れ</span>}
+      </div>
+
+      {portalUrl && !isExpired ? (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div style={{ flex: 1, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 12px', fontSize: 12, color: C.ink, fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+            {portalUrl}
+          </div>
+          <button onClick={copyUrl} style={{ background: copied ? C.green : C.accent, color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' as const, minWidth: 80 }}>
+            {copied ? '✓ コピー済' : 'URLコピー'}
+          </button>
+          <button onClick={generateToken} disabled={generating} style={{ background: C.surface, color: C.inkMid, border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: generating ? 'not-allowed' : 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' as const }}>
+            再発行
+          </button>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <span style={{ fontSize: 12, color: C.inkFaint }}>{isExpired ? '期限切れです。再発行してください。' : 'まだ発行されていません。'}</span>
+          <button onClick={generateToken} disabled={generating} style={{ background: generating ? C.border : C.accent, color: generating ? C.inkFaint : '#fff', border: 'none', borderRadius: 8, padding: '8px 18px', fontSize: 12, fontWeight: 700, cursor: generating ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+            {generating ? '発行中...' : 'ポータルURLを発行'}
+          </button>
+        </div>
+      )}
+
+      {expiresAt && !isExpired && (
+        <div style={{ fontSize: 10, color: C.inkFaint, marginTop: 6 }}>
+          有効期限: {new Date(expiresAt).toLocaleDateString('ja-JP')} — このURLをお客様にメール等でご案内ください
         </div>
       )}
     </div>
