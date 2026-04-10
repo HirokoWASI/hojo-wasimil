@@ -184,7 +184,7 @@ export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ applicationId: client.id, type: alertType, subject: alertSubject, body: alertBody }),
       })
-      const via = alertTiming === 'now' ? 'Resend API（即時）' : 'Resend API（Vercel Cron 予約）'
+      const via = alertTiming === 'now' ? '即時送信' : '予約送信'
       const newAlert: EmailLog = {
         id: Date.now().toString(), application_id: client.id, type: alertType as any,
         subject: alertSubject, to_email: client.clients.email, status: 'sent',
@@ -489,10 +489,6 @@ export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }
               <button onClick={() => setShowAlertModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: C.inkFaint }}>×</button>
             </div>
 
-            <div style={{ background: C.blueBg, border: `1px solid ${C.blueBorder}`, borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: C.blue }}>
-              Resend API（Vercel API Route 経由）で送信 — Make.com 不使用
-            </div>
-
             <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' as const, alignItems: 'center' }}>
               <span style={{ fontSize: 11, color: C.inkFaint }}>テンプレ:</span>
               {[['deadline', '🔴 期限アラート'], ['reminder', '📋 書類催促'], ['return', '↩ 差し戻し通知']].map(([t, l]) => (
@@ -518,9 +514,9 @@ export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }
               <div>
                 <div style={{ fontSize: 11, color: C.inkFaint, marginBottom: 5 }}>送信タイミング</div>
                 <select style={inp} value={alertTiming} onChange={e => setAlertTiming(e.target.value)}>
-                  <option value="now">今すぐ送信（Resend API 即時）</option>
-                  <option value="tomorrow">明日 9:00（Vercel Cron スケジュール）</option>
-                  <option value="weekly">毎週月曜 9:00（Vercel Cron 定期実行）</option>
+                  <option value="now">今すぐ送信</option>
+                  <option value="tomorrow">明日 9:00</option>
+                  <option value="weekly">毎週月曜 9:00</option>
                 </select>
               </div>
               <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
@@ -546,7 +542,7 @@ export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }
           <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: 28, width: 440, boxShadow: '0 8px 32px rgba(0,0,0,0.15)' }}>
             <h3 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 800 }}>↩ 差し戻しコメント</h3>
             <div style={{ fontSize: 13, color: C.inkMid, marginBottom: 12 }}>
-              お客様に表示する修正依頼コメントを入力してください。Supabase Edge Function が Resend API 経由でメールを自動送信します。
+              お客様に表示する修正依頼コメントを入力してください。メールが自動送信されます。
             </div>
             <textarea
               value={returnNote}
