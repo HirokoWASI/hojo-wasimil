@@ -1,6 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  serverExternalPackages: ['@mendable/firecrawl-js'],
+  experimental: {
+    serverComponentsExternalPackages: ['@mendable/firecrawl-js'],
+  },
   images: {
     remotePatterns: [
       {
