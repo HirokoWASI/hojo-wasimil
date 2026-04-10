@@ -141,7 +141,7 @@ export async function POST(req: NextRequest) {
   }
 
   // 手動登録
-  const { name, email, contactName, facilityName, roomCount, phone, subsidyType } = body
+  const { name, email, contactName, facilityName, roomCount, phone, subsidyType, programId, roundId } = body
 
   if (!name) return NextResponse.json({ error: 'name required' }, { status: 400 })
 
@@ -168,6 +168,8 @@ export async function POST(req: NextRequest) {
       subsidy_frame: subsidyType === 'デジタル化・AI導入補助金' ? '通常枠' : null,
       status: '適格審査中',
       tool_name: 'WASIMIL',
+      program_id: programId ?? null,
+      round_id: roundId ?? null,
     })
     .select()
     .single()
