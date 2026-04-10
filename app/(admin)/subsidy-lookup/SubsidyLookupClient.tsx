@@ -85,6 +85,14 @@ function statusColor(status: string) {
   }
 }
 
+// ---- Sales Deal 型 ----
+interface SalesDeal {
+  id: string; facility_name: string; stage: string
+  expected_mrr: number | null; initial_fee: number | null
+  room_count: number | null; notes: string | null
+  company_name: string; already_synced: boolean
+}
+
 // ==== メインコンポーネント ====
 export default function SubsidyLookupClient() {
   const [tab, setTab] = useState<'overview' | 'clients' | 'flow'>('overview')
@@ -92,6 +100,7 @@ export default function SubsidyLookupClient() {
   const [apps, setApps] = useState<ClientApp[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedApp, setSelectedApp] = useState<ClientApp | null>(null)
+  const [showRegister, setShowRegister] = useState(false)
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -270,11 +279,18 @@ export default function SubsidyLookupClient() {
       {/* ===== 顧客別申請管理タブ ===== */}
       {!loading && tab === 'clients' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* 登録ボタン */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button onClick={() => setShowRegister(true)} style={{ background: C.accent, color: '#fff', border: 'none', borderRadius: 8, padding: '8px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6 }}>
+              ＋ 顧客を登録
+            </button>
+          </div>
+
           {apps.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 48, background: C.surface, borderRadius: 14, border: `1px dashed ${C.borderMid}`, color: C.inkFaint }}>
               <div style={{ fontSize: 32, marginBottom: 12 }}>🏨</div>
               <div style={{ fontSize: 14, fontWeight: 700, color: C.inkMid, marginBottom: 6 }}>申請中の顧客がありません</div>
-              <div style={{ fontSize: 12 }}>「顧客プロセス管理」から新規案件を作成すると、ここに表示されます</div>
+              <div style={{ fontSize: 12 }}>上の「顧客を登録」ボタンから新規登録、またはSales Pipelineから同期できます</div>
             </div>
           ) : apps.map(app => {
             const sc = statusColor(app.status)
@@ -364,6 +380,14 @@ export default function SubsidyLookupClient() {
           app={selectedApp}
           onClose={() => setSelectedApp(null)}
           onUpdate={() => { loadData(); setSelectedApp(null) }}
+        />
+      )}
+
+      {/* ===== 顧客登録モーダル ===== */}
+      {showRegister && (
+        <RegisterClientModal
+          onClose={() => setShowRegister(false)}
+          onRegistered={() => { setShowRegister(false); loadData(); setTab('clients') }}
         />
       )}
     </div>
@@ -502,6 +526,197 @@ function ClientDetailModal({ app, onClose, onUpdate }: { app: ClientApp; onClose
           {app.notes && (
             <div style={{ marginTop: 16, background: C.yellowBg, border: `1px solid ${C.yellowBorder}`, borderRadius: 8, padding: '10px 14px', fontSize: 12, color: C.yellow }}>
               <strong>メモ:</strong> {app.notes}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ---- 顧客登録モーダル ----
+function RegisterClientModal({ onClose, onRegistered }: { onClose: () => void; onRegistered: () => void }) {
+  const [mode, setMode] = useState<'manual' | 'sales'>('sales')
+  const [saving, setSaving] = useState(false)
+
+  // 手動登録フォーム
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [contactName, setContactName] = useState('')
+  const [facilityName, setFacilityName] = useState('')
+  const [roomCount, setRoomCount] = useState('')
+  const [phone, setPhone] = useState('')
+
+  // Sales 同期
+  const [deals, setDeals] = useState<SalesDeal[]>([])
+  const [dealsLoading, setDealsLoading] = useState(false)
+  const [dealsError, setDealsError] = useState<string | null>(null)
+  const [syncingId, setSyncingId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (mode === 'sales') loadDeals()
+  }, [mode])
+
+  async function loadDeals() {
+    setDealsLoading(true)
+    setDealsError(null)
+    try {
+      const res = await fetch('/api/subsidy-clients?mode=sales-deals')
+      if (!res.ok) {
+        const json = await res.json()
+        setDealsError(json.error ?? 'エラー')
+        return
+      }
+      setDeals(await res.json())
+    } catch { setDealsError('通信エラー') }
+    finally { setDealsLoading(false) }
+  }
+
+  async function handleManualSubmit() {
+    if (!name.trim() || saving) return
+    setSaving(true)
+    try {
+      const res = await fetch('/api/subsidy-clients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, contactName, facilityName, roomCount: roomCount ? parseInt(roomCount) : null, phone }),
+      })
+      if (res.ok) onRegistered()
+    } finally { setSaving(false) }
+  }
+
+  async function handleSyncDeal(dealId: string) {
+    setSyncingId(dealId)
+    try {
+      const res = await fetch('/api/subsidy-clients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'sync-from-sales', dealId }),
+      })
+      if (res.ok) {
+        onRegistered()
+      } else {
+        const json = await res.json()
+        alert(json.error ?? 'エラー')
+      }
+    } finally { setSyncingId(null) }
+  }
+
+  const inputStyle = { background: C.bg, border: `1px solid ${C.borderMid}`, borderRadius: 8, padding: '9px 14px', color: C.ink, fontSize: 13, fontFamily: 'inherit', outline: 'none', width: '100%' } as const
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{ background: C.surface, borderRadius: 16, width: '100%', maxWidth: 640, maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}>
+        {/* ヘッダー */}
+        <div style={{ padding: '20px 24px', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: C.surface, zIndex: 1 }}>
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>顧客を登録</h3>
+          <button onClick={onClose} style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, width: 32, height: 32, cursor: 'pointer', fontSize: 16, color: C.inkMid, flexShrink: 0 }}>✕</button>
+        </div>
+
+        <div style={{ padding: 24 }}>
+          {/* モード切替 */}
+          <div style={{ display: 'flex', gap: 2, marginBottom: 20, background: C.bg, borderRadius: 10, padding: 4, border: `1px solid ${C.border}` }}>
+            {([
+              { id: 'sales' as const, label: '🔄 Sales Pipelineから同期' },
+              { id: 'manual' as const, label: '✏️ 手動登録' },
+            ]).map(t => (
+              <button key={t.id} onClick={() => setMode(t.id)} style={{ flex: 1, background: mode === t.id ? C.surface : 'transparent', color: mode === t.id ? C.ink : C.inkMid, border: mode === t.id ? `1px solid ${C.border}` : '1px solid transparent', borderRadius: 8, padding: '8px 12px', fontSize: 13, fontWeight: mode === t.id ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit', boxShadow: mode === t.id ? '0 1px 3px rgba(0,0,0,0.08)' : 'none' }}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Sales 同期モード */}
+          {mode === 'sales' && (
+            <div>
+              <div style={{ fontSize: 12, color: C.inkMid, marginBottom: 12, lineHeight: 1.6 }}>
+                Sales Pipelineの案件（SQL確度A/B・成約）から選択して、補助金申請管理に同期します。
+              </div>
+
+              {dealsLoading && <div style={{ textAlign: 'center', padding: 24, color: C.inkFaint, fontSize: 13 }}>Sales Pipeline を読み込み中...</div>}
+
+              {dealsError && (
+                <div style={{ background: C.yellowBg, border: `1px solid ${C.yellowBorder}`, borderRadius: 10, padding: '12px 16px', fontSize: 12, color: C.yellow, marginBottom: 12 }}>
+                  ⚠️ {dealsError}
+                  <div style={{ fontSize: 11, marginTop: 4, color: C.inkFaint }}>Vercel環境変数に SALES_SUPABASE_URL と SALES_SUPABASE_SERVICE_KEY を設定してください</div>
+                </div>
+              )}
+
+              {!dealsLoading && !dealsError && deals.length === 0 && (
+                <div style={{ textAlign: 'center', padding: 24, color: C.inkFaint, fontSize: 13 }}>同期可能な案件がありません</div>
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {deals.map(deal => (
+                  <div key={deal.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', background: deal.already_synced ? C.greenBg : C.bg, borderRadius: 10, border: `1px solid ${deal.already_synced ? C.greenBorder : C.border}` }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 3 }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{deal.facility_name || deal.company_name || '未設定'}</span>
+                        <span style={{ fontSize: 10, padding: '1px 8px', borderRadius: 6, background: deal.stage === '成約' ? C.greenBg : C.blueBg, color: deal.stage === '成約' ? C.green : C.blue, border: `1px solid ${deal.stage === '成約' ? C.greenBorder : C.blueBorder}` }}>{deal.stage}</span>
+                      </div>
+                      <div style={{ fontSize: 11, color: C.inkFaint, display: 'flex', gap: 10 }}>
+                        {deal.company_name && <span>{deal.company_name}</span>}
+                        {deal.room_count && <span>{deal.room_count}室</span>}
+                        {deal.expected_mrr && <span>MRR ¥{Number(deal.expected_mrr).toLocaleString()}</span>}
+                      </div>
+                    </div>
+                    {deal.already_synced ? (
+                      <span style={{ fontSize: 11, color: C.green, fontWeight: 700, whiteSpace: 'nowrap' as const }}>✓ 同期済</span>
+                    ) : (
+                      <button
+                        onClick={() => handleSyncDeal(deal.id)}
+                        disabled={syncingId === deal.id}
+                        style={{ background: C.accent, color: '#fff', border: 'none', borderRadius: 8, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: syncingId === deal.id ? 'not-allowed' : 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' as const, opacity: syncingId === deal.id ? 0.6 : 1 }}
+                      >
+                        {syncingId === deal.id ? '同期中...' : '→ 同期'}
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 手動登録モード */}
+          {mode === 'manual' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={{ fontSize: 11, color: C.inkFaint, fontWeight: 600, marginBottom: 4, display: 'block' }}>施設名・会社名 *</label>
+                  <input value={name} onChange={e => setName(e.target.value)} placeholder="例: 箱根温泉 紫雲荘" style={inputStyle} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: C.inkFaint, fontWeight: 600, marginBottom: 4, display: 'block' }}>施設名（別名）</label>
+                  <input value={facilityName} onChange={e => setFacilityName(e.target.value)} placeholder="例: 紫雲荘 本館" style={inputStyle} />
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={{ fontSize: 11, color: C.inkFaint, fontWeight: 600, marginBottom: 4, display: 'block' }}>担当者名</label>
+                  <input value={contactName} onChange={e => setContactName(e.target.value)} placeholder="例: 山田太郎" style={inputStyle} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: C.inkFaint, fontWeight: 600, marginBottom: 4, display: 'block' }}>メールアドレス</label>
+                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="例: info@example.com" style={inputStyle} />
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={{ fontSize: 11, color: C.inkFaint, fontWeight: 600, marginBottom: 4, display: 'block' }}>電話番号</label>
+                  <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="例: 03-1234-5678" style={inputStyle} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: C.inkFaint, fontWeight: 600, marginBottom: 4, display: 'block' }}>客室数</label>
+                  <input type="number" value={roomCount} onChange={e => setRoomCount(e.target.value)} placeholder="例: 25" style={inputStyle} />
+                </div>
+              </div>
+              <button
+                onClick={handleManualSubmit}
+                disabled={!name.trim() || saving}
+                style={{ marginTop: 8, background: name.trim() && !saving ? C.accent : C.border, color: name.trim() && !saving ? '#fff' : C.inkFaint, border: 'none', borderRadius: 10, padding: '12px 24px', fontSize: 14, fontWeight: 700, cursor: name.trim() && !saving ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}
+              >
+                {saving ? '登録中...' : '登録して申請管理を開始'}
+              </button>
             </div>
           )}
         </div>
