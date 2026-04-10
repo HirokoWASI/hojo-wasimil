@@ -85,6 +85,19 @@ function statusColor(status: string) {
   }
 }
 
+// ---- 収集補助金 型 ----
+interface CollectedSubsidy {
+  id: string; source_url: string; name: string | null; organizer: string | null
+  subsidy_amount: string | null; subsidy_rate: string | null
+  application_end: string | null; summary: string | null
+  it_related: boolean; hotel_related: boolean; is_new: boolean; updated_at: string
+}
+interface SubsidySource {
+  id: string; name: string; url: string; keywords: string[]
+  active: boolean; last_crawled_at: string | null
+}
+interface SyncResult { sourceId: string; sourceName: string; status: string; name?: string }
+
 // ---- Sales Deal 型 ----
 interface SalesDeal {
   id: string; facility_name: string; stage: string
@@ -93,14 +106,33 @@ interface SalesDeal {
   company_name: string; already_synced: boolean
 }
 
+// ---- 補助金種別 ----
+const SUBSIDY_TYPES = [
+  'デジタル化・AI導入補助金',
+  'ものづくり補助金',
+  '小規模事業者持続化補助金',
+  '事業再構築補助金',
+  '省エネ補助金',
+  'その他',
+] as const
+
 // ==== メインコンポーネント ====
 export default function SubsidyLookupClient() {
-  const [tab, setTab] = useState<'overview' | 'clients' | 'flow'>('overview')
+  const [tab, setTab] = useState<'overview' | 'clients' | 'flow' | 'collect'>('overview')
   const [rounds, setRounds] = useState<SubsidyRound[]>([])
   const [apps, setApps] = useState<ClientApp[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedApp, setSelectedApp] = useState<ClientApp | null>(null)
   const [showRegister, setShowRegister] = useState(false)
+
+  // 収集タブ
+  const [collected, setCollected] = useState<CollectedSubsidy[]>([])
+  const [sources, setSources] = useState<SubsidySource[]>([])
+  const [syncLoading, setSyncLoading] = useState(false)
+  const [syncResults, setSyncResults] = useState<SyncResult[] | null>(null)
+  const [addName, setAddName] = useState('')
+  const [addUrl, setAddUrl] = useState('')
+  const [addKeywords, setAddKeywords] = useState('')
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -114,7 +146,39 @@ export default function SubsidyLookupClient() {
     } finally { setLoading(false) }
   }, [])
 
+  const loadCollectData = useCallback(async () => {
+    const [cRes, sRes] = await Promise.all([
+      fetch('/api/subsidy-collected'),
+      fetch('/api/subsidy-sources'),
+    ])
+    if (cRes.ok) setCollected(await cRes.json())
+    if (sRes.ok) setSources(await sRes.json())
+  }, [])
+
   useEffect(() => { loadData() }, [loadData])
+  useEffect(() => { if (tab === 'collect') loadCollectData() }, [tab, loadCollectData])
+
+  async function handleSync(sourceId?: string) {
+    setSyncLoading(true); setSyncResults(null)
+    try {
+      const res = await fetch('/api/subsidy-sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sourceId ? { sourceId } : {}) })
+      const json = await res.json()
+      if (json.results) { setSyncResults(json.results); loadCollectData() }
+    } catch { /* ignore */ } finally { setSyncLoading(false) }
+  }
+
+  async function handleAddSource() {
+    if (!addName || !addUrl) return
+    const keywords = addKeywords.split(/[,、\s]+/).filter(Boolean)
+    await fetch('/api/subsidy-sources', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: addName, url: addUrl, keywords }) })
+    setAddName(''); setAddUrl(''); setAddKeywords(''); loadCollectData()
+  }
+
+  async function handleDeleteSource(id: string) {
+    if (!confirm('このソースを削除しますか？')) return
+    await fetch('/api/subsidy-sources', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
+    loadCollectData()
+  }
 
   const currentRound = rounds.find(r => r.is_current)
   const daysLeft = currentRound ? daysUntil(currentRound.application_end) : null
@@ -124,10 +188,10 @@ export default function SubsidyLookupClient() {
       {/* ヘッダー */}
       <div style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>デジタル化・AI導入補助金 2026</h2>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>補助金申請サポート</h2>
           <span style={{ background: C.greenBg, color: C.green, fontSize: 10, padding: '3px 10px', borderRadius: 8, border: `1px solid ${C.greenBorder}`, fontWeight: 700 }}>IT導入支援事業者: AZOO</span>
         </div>
-        <p style={{ margin: 0, color: C.inkFaint, fontSize: 13 }}>ホテル顧客のIT導入補助金申請をベンダーとして管理</p>
+        <p style={{ margin: 0, color: C.inkFaint, fontSize: 13 }}>ホテル顧客の補助金申請をベンダーとして管理（デジタル化・AI導入補助金 / その他補助金）</p>
       </div>
 
       {/* ステータスバー */}
@@ -160,6 +224,7 @@ export default function SubsidyLookupClient() {
         {([
           { id: 'overview' as const, label: '📋 公募要領・スケジュール' },
           { id: 'clients' as const, label: `🏨 顧客別申請管理（${apps.length}）` },
+          { id: 'collect' as const, label: `🔍 補助金情報収集（${collected.length}）` },
           { id: 'flow' as const, label: '📖 申請フローガイド' },
         ]).map(t => (
           <button key={t.id} onClick={() => setTab(t.id)} style={{ background: tab === t.id ? C.surface : 'transparent', color: tab === t.id ? C.ink : C.inkMid, border: tab === t.id ? `1px solid ${C.border}` : '1px solid transparent', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: tab === t.id ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit', boxShadow: tab === t.id ? '0 1px 3px rgba(0,0,0,0.08)' : 'none', transition: 'all 0.15s' }}>
@@ -332,6 +397,104 @@ export default function SubsidyLookupClient() {
               </button>
             )
           })}
+        </div>
+      )}
+
+      {/* ===== 補助金情報収集タブ ===== */}
+      {tab === 'collect' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* 同期ボタン・結果 */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontSize: 13, color: C.inkMid }}>登録ソースから補助金情報を自動収集・AI解析します</div>
+            <button onClick={() => handleSync()} disabled={syncLoading} style={{ background: syncLoading ? C.border : C.accent, color: syncLoading ? C.inkFaint : '#fff', border: 'none', borderRadius: 8, padding: '8px 18px', fontSize: 12, fontWeight: 700, cursor: syncLoading ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+              {syncLoading ? '同期中...' : '今すぐ同期'}
+            </button>
+          </div>
+
+          {syncResults && (
+            <div style={{ background: C.greenBg, border: `1px solid ${C.greenBorder}`, borderRadius: 10, padding: '12px 16px', fontSize: 12 }}>
+              <div style={{ fontWeight: 700, color: C.green, marginBottom: 6 }}>同期完了</div>
+              {syncResults.map((r, i) => (
+                <div key={i} style={{ color: C.inkMid }}><span style={{ fontWeight: 600 }}>{r.sourceName}</span> — {r.status}{r.name ? `（${r.name}）` : ''}</div>
+              ))}
+            </div>
+          )}
+
+          {/* 収集済み一覧 */}
+          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden' }}>
+            <div style={{ padding: '14px 20px', background: C.surfaceAlt, borderBottom: `1px solid ${C.border}`, fontSize: 14, fontWeight: 800 }}>
+              収集済み補助金情報
+            </div>
+            {collected.length === 0 ? (
+              <div style={{ padding: 32, textAlign: 'center', color: C.inkFaint, fontSize: 13 }}>まだ収集データがありません。ソースを追加して同期してください。</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {collected.map(s => (
+                  <div key={s.id} style={{ padding: '14px 20px', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
+                        {s.is_new && <span style={{ background: C.accent, color: '#fff', fontSize: 9, padding: '2px 6px', borderRadius: 6, fontWeight: 700 }}>NEW</span>}
+                        {s.it_related && <span style={{ background: C.blueBg, color: C.blue, fontSize: 9, padding: '2px 6px', borderRadius: 6, border: `1px solid ${C.blueBorder}` }}>IT・DX</span>}
+                        {s.hotel_related && <span style={{ background: C.accentBg, color: C.accent, fontSize: 9, padding: '2px 6px', borderRadius: 6, border: `1px solid ${C.accentBorder}` }}>宿泊業</span>}
+                      </div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: C.ink, marginBottom: 3 }}>{s.name ?? '（名称不明）'}</div>
+                      {s.summary && <div style={{ fontSize: 12, color: C.inkMid, lineHeight: 1.5 }}>{s.summary}</div>}
+                      <div style={{ display: 'flex', gap: 12, marginTop: 6, fontSize: 11 }}>
+                        {s.subsidy_amount && <span style={{ color: C.accent, fontWeight: 600 }}>補助額: {s.subsidy_amount}</span>}
+                        {s.subsidy_rate && <span style={{ color: C.green, fontWeight: 600 }}>補助率: {s.subsidy_rate}</span>}
+                        {s.application_end && <span style={{ color: C.red }}>締切: {s.application_end}</span>}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 10, color: C.inkFaint, whiteSpace: 'nowrap' as const }}>{new Date(s.updated_at).toLocaleDateString('ja-JP')}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ソース管理 */}
+          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden' }}>
+            <div style={{ padding: '14px 20px', background: C.surfaceAlt, borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 14, fontWeight: 800 }}>収集ソース管理</span>
+              <button onClick={() => handleSync()} disabled={syncLoading} style={{ background: syncLoading ? C.border : C.green, color: syncLoading ? C.inkFaint : '#fff', border: 'none', borderRadius: 8, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: syncLoading ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                全ソース同期
+              </button>
+            </div>
+            {sources.length === 0 ? (
+              <div style={{ padding: 24, textAlign: 'center', color: C.inkFaint, fontSize: 13 }}>ソースがありません</div>
+            ) : (
+              <div>
+                {sources.map((src, i) => (
+                  <div key={src.id} style={{ padding: '12px 20px', borderBottom: i < sources.length - 1 ? `1px solid ${C.border}` : 'none', display: 'flex', gap: 12, alignItems: 'center' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{src.name}</div>
+                      <div style={{ fontSize: 11, color: C.blue, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{src.url}</div>
+                      {src.last_crawled_at && <div style={{ fontSize: 10, color: C.inkFaint, marginTop: 2 }}>最終同期: {new Date(src.last_crawled_at).toLocaleString('ja-JP')}</div>}
+                    </div>
+                    <button onClick={() => handleSync(src.id)} disabled={syncLoading} style={{ background: C.blueBg, color: C.blue, border: `1px solid ${C.blueBorder}`, borderRadius: 6, padding: '5px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>同期</button>
+                    <button onClick={() => handleDeleteSource(src.id)} style={{ background: C.redBg, color: C.red, border: `1px solid ${C.redBorder}`, borderRadius: 6, padding: '5px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>削除</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ソース追加 */}
+          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 20 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12 }}>ソースを追加</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 10 }}>
+                <input value={addName} onChange={e => setAddName(e.target.value)} placeholder="ソース名" style={{ background: C.bg, border: `1px solid ${C.borderMid}`, borderRadius: 8, padding: '9px 14px', color: C.ink, fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
+                <input value={addUrl} onChange={e => setAddUrl(e.target.value)} placeholder="URL（https://...）" style={{ background: C.bg, border: `1px solid ${C.borderMid}`, borderRadius: 8, padding: '9px 14px', color: C.ink, fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <input value={addKeywords} onChange={e => setAddKeywords(e.target.value)} placeholder="キーワード（カンマ区切り）" style={{ flex: 1, background: C.bg, border: `1px solid ${C.borderMid}`, borderRadius: 8, padding: '9px 14px', color: C.ink, fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
+                <button onClick={handleAddSource} disabled={!addName || !addUrl} style={{ background: addName && addUrl ? C.accent : C.border, color: addName && addUrl ? '#fff' : C.inkFaint, border: 'none', borderRadius: 8, padding: '0 20px', fontSize: 13, fontWeight: 700, cursor: addName && addUrl ? 'pointer' : 'not-allowed', fontFamily: 'inherit', whiteSpace: 'nowrap' as const }}>
+                  追加
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -546,6 +709,7 @@ function RegisterClientModal({ onClose, onRegistered }: { onClose: () => void; o
   const [facilityName, setFacilityName] = useState('')
   const [roomCount, setRoomCount] = useState('')
   const [phone, setPhone] = useState('')
+  const [subsidyType, setSubsidyType] = useState('デジタル化・AI導入補助金')
 
   // Sales 同期
   const [deals, setDeals] = useState<SalesDeal[]>([])
@@ -579,7 +743,7 @@ function RegisterClientModal({ onClose, onRegistered }: { onClose: () => void; o
       const res = await fetch('/api/subsidy-clients', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, contactName, facilityName, roomCount: roomCount ? parseInt(roomCount) : null, phone }),
+        body: JSON.stringify({ name, email, contactName, facilityName, roomCount: roomCount ? parseInt(roomCount) : null, phone, subsidyType }),
       })
       if (res.ok) onRegistered()
     } finally { setSaving(false) }
@@ -709,6 +873,12 @@ function RegisterClientModal({ onClose, onRegistered }: { onClose: () => void; o
                   <label style={{ fontSize: 11, color: C.inkFaint, fontWeight: 600, marginBottom: 4, display: 'block' }}>客室数</label>
                   <input type="number" value={roomCount} onChange={e => setRoomCount(e.target.value)} placeholder="例: 25" style={inputStyle} />
                 </div>
+              </div>
+              <div>
+                <label style={{ fontSize: 11, color: C.inkFaint, fontWeight: 600, marginBottom: 4, display: 'block' }}>申請する補助金 *</label>
+                <select value={subsidyType} onChange={e => setSubsidyType(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
+                  {SUBSIDY_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
               </div>
               <button
                 onClick={handleManualSubmit}

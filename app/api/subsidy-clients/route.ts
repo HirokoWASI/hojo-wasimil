@@ -123,7 +123,7 @@ export async function POST(req: NextRequest) {
       .from('applications')
       .insert({
         client_id: client.id,
-        subsidy_type: 'IT導入補助金',
+        subsidy_type: 'デジタル化・AI導入補助金',
         subsidy_frame: '通常枠',
         status: '適格審査中',
         tool_name: 'WASIMIL',
@@ -141,7 +141,7 @@ export async function POST(req: NextRequest) {
   }
 
   // 手動登録
-  const { name, email, contactName, facilityName, roomCount, phone } = body
+  const { name, email, contactName, facilityName, roomCount, phone, subsidyType } = body
 
   if (!name) return NextResponse.json({ error: 'name required' }, { status: 400 })
 
@@ -164,8 +164,8 @@ export async function POST(req: NextRequest) {
     .from('applications')
     .insert({
       client_id: client.id,
-      subsidy_type: 'IT導入補助金',
-      subsidy_frame: '通常枠',
+      subsidy_type: subsidyType ?? 'デジタル化・AI導入補助金',
+      subsidy_frame: subsidyType === 'デジタル化・AI導入補助金' ? '通常枠' : null,
       status: '適格審査中',
       tool_name: 'WASIMIL',
     })
