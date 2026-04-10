@@ -205,7 +205,8 @@ export default function AdminChatClient({ applications, csName }: Props) {
     return <div style={{ padding: 40, textAlign: 'center', color: C.inkFaint, fontSize: 14 }}>案件がありません</div>
   }
 
-  const slackChannel = app.slack_channel ?? `#portal-${app.clients.name.toLowerCase().replace(/\s/g, '-')}`
+  const clientName = app.clients?.name ?? '—'
+  const slackChannel = app.slack_channel ?? `#portal-${clientName.toLowerCase().replace(/\s/g, '-')}`
 
   return (
     <div style={{ maxWidth: 1200 }}>
@@ -225,7 +226,7 @@ export default function AdminChatClient({ applications, csName }: Props) {
         <div style={{ marginBottom: 20, display: 'flex', gap: 8, flexWrap: 'wrap' as const }}>
           {applications.map(a => (
             <button key={a.id} onClick={() => setSelId(a.id)} style={{ background: selId === a.id ? C.accentBg : C.surface, color: selId === a.id ? C.accent : C.inkMid, border: `1px solid ${selId === a.id ? C.accentBorder : C.border}`, borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: selId === a.id ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit' }}>
-              {a.clients.name}
+              {a.clients?.name ?? '—'}
             </button>
           ))}
         </div>
@@ -247,14 +248,14 @@ export default function AdminChatClient({ applications, csName }: Props) {
               <div style={{ padding: '12px 16px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ width: 34, height: 34, borderRadius: '50%', background: C.blue, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: '#fff' }}>客</div>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 700 }}>{app.clients.name} — {app.clients.contact_name ?? app.clients.name}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>{clientName} — {app.clients?.contact_name ?? app.clients.name}</div>
                   <div style={{ fontSize: 11, color: C.inkFaint, display: 'flex', gap: 4, alignItems: 'center' }}>
                     <span style={{ color: C.slack, fontWeight: 700, fontSize: 10 }}>■</span> {slackChannel}
                   </div>
                 </div>
               </div>
               <div style={{ height: 'calc(100% - 108px)' }}>
-                <CSChatPanel applicationId={app.id} csName={csName} clientContactName={app.clients.contact_name ?? app.clients.name} />
+                <CSChatPanel applicationId={app.id} csName={csName} clientContactName={app.clients?.contact_name ?? app.clients.name} />
               </div>
             </>
           )}
@@ -265,7 +266,7 @@ export default function AdminChatClient({ applications, csName }: Props) {
               {[
                 { n: 1, col: C.blue,   title: '顧客がポータルでメッセージ送信',    body: 'Supabase messages テーブルに INSERT → slackPosted: false' },
                 { n: 2, col: C.green,  title: 'Supabase Edge Function が発火',     body: 'Database Webhook (on INSERT) → Slack Web API で投稿 → slackPosted: true に更新' },
-                { n: 3, col: C.slack,  title: 'Slackbot が投稿',                   body: `${slackChannel} に「[${app.clients.name}] 田中様: 〇〇」を投稿。CSチームが確認` },
+                { n: 3, col: C.slack,  title: 'Slackbot が投稿',                   body: `${slackChannel} に「[${clientName}] 田中様: 〇〇」を投稿。CSチームが確認` },
                 { n: 4, col: C.accent, title: 'CSがSlackで返信',                   body: 'Slack Events API が message.channels イベントを Webhook 送信 → /api/slack/events' },
                 { n: 5, col: C.green,  title: 'ポータルにリアルタイム反映',         body: 'API Route → Supabase INSERT (from_slack: true) → Supabase Realtime → useEffect でUI更新' },
               ].map(item => (

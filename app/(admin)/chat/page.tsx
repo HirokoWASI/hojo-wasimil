@@ -15,9 +15,17 @@ export default async function ChatPage() {
 
   const csName = user.email?.split('@')[0] ?? 'CS担当'
 
+  // clients が null の行を除外し、安全な型に変換
+  const safeApps = (applications ?? [])
+    .filter((a: any) => a.clients)
+    .map((a: any) => ({
+      ...a,
+      clients: a.clients ?? { name: '—', email: '', contact_name: null },
+    }))
+
   return (
     <AdminChatClient
-      applications={(applications ?? []) as any}
+      applications={safeApps as any}
       csName={csName}
     />
   )
