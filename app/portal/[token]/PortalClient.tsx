@@ -22,14 +22,21 @@ const C = {
 
 type Tab = 'overview' | 'ai' | 'flow' | 'docs' | 'chat'
 
+interface SubsidyInfo {
+  name: string; organizer: string | null; summary: string | null
+  subsidy_amount: string | null; subsidy_rate: string | null; application_end: string | null
+  target_business: string | null; requirements: string[]; eligible_expenses: string[]
+}
+
 interface Props {
   client: Client
   applications: Application[]
   documents: Document[]
   screeningLogs: ScreeningLog[]
+  subsidyInfoMap?: Record<string, SubsidyInfo>
 }
 
-export function PortalClient({ client, applications, documents, screeningLogs }: Props) {
+export function PortalClient({ client, applications, documents, screeningLogs, subsidyInfoMap }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('overview')
   const [selectedAppId, setSelectedAppId] = useState<string>(applications[0]?.id ?? '')
   const [docs, setDocs] = useState(documents)
@@ -141,7 +148,7 @@ export function PortalClient({ client, applications, documents, screeningLogs }:
       {/* コンテンツ */}
       <div style={{ flex: 1, maxWidth: 860, margin: '0 auto', width: '100%', padding: '24px' }}>
         {activeTab === 'overview' && (
-          <OverviewTab application={selectedApp} onChatClick={() => setActiveTab('chat')} />
+          <OverviewTab application={selectedApp} onChatClick={() => setActiveTab('chat')} subsidyInfo={subsidyInfoMap?.[selectedApp?.subsidy_type ?? ''] ?? null} />
         )}
         {activeTab === 'ai' && (
           <AITab screeningLog={screeningLog} onChatClick={() => setActiveTab('chat')} />

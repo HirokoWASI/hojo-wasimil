@@ -68,12 +68,29 @@ export default async function PortalPage({ params }: Props) {
         .order('created_at', { ascending: false })
     : { data: [] }
 
+  // 収集済み補助金情報（概要表示用）
+  const subsidyTypes = Array.from(new Set((applications ?? []).map(a => a.subsidy_type)))
+  const subsidyInfoMap: Record<string, any> = {}
+  for (const st of subsidyTypes) {
+    const keywords = st.replace(/補助金/g, '').split(/[・\s]+/).filter((s: string) => s.length > 1)
+    for (const kw of keywords) {
+      const { data } = await supabase
+        .from('collected_subsidies')
+        .select('name, organizer, summary, subsidy_amount, subsidy_rate, application_end, target_business, requirements, eligible_expenses')
+        .ilike('name', `%${kw}%`)
+        .limit(1)
+        .single()
+      if (data) { subsidyInfoMap[st] = data; break }
+    }
+  }
+
   return (
     <PortalClient
       client={client}
       applications={applications ?? []}
       documents={documents ?? []}
       screeningLogs={screeningLogs ?? []}
+      subsidyInfoMap={subsidyInfoMap}
     />
   )
 }
