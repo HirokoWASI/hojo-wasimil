@@ -6,7 +6,7 @@ export default async function ApplicationsPage() {
 
   const { data: applications } = await supabase
     .from('applications')
-    .select('*, clients(id, name, email, contact_name, portal_token, token_expires_at, phone, facility_name, room_count, employee_count, capital_amount, industry, corporate_number, gbiz_id, representative_name, address)')
+    .select('*, clients(id, name, email, contact_name, portal_token, token_expires_at, phone, facility_name, room_count, employee_count, capital_amount, industry, corporate_number, gbiz_id, representative_name, address, revenue, current_system, subsidy_history, wage_raise_plan)')
     .order('created_at', { ascending: false })
 
   const appIds = (applications ?? []).map(a => a.id)

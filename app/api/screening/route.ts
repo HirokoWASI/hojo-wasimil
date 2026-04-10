@@ -6,7 +6,7 @@ export async function POST(req: NextRequest) {
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
   const supabase = createServiceClient()
   const body = await req.json()
-  const { clientName, employees, revenue, hasHistory, currentSystem, note, applicationId } = body
+  const { clientName, employees, revenue, hasHistory, currentSystem, note, applicationId, capitalAmount, industry, roomCount, wageRaisePlan, gbizIdStatus, securityActionDone, miradejiDone } = body
 
   if (!clientName) {
     return NextResponse.json({ error: 'clientName は必須です' }, { status: 400 })
@@ -81,12 +81,18 @@ ${guidelinesContext}
   const userMessage = `以下の顧客情報を基にデジタル化・AI導入補助金2026の適格性を診断してください。
 
 顧客名: ${clientName}
-業種: 宿泊業（ホテル・旅館）
-従業員数: ${employees ?? '不明'}名
+業種: ${industry ?? '宿泊業'}（※旅館業の場合: 資本金5,000万円以下 or 従業員200人以下が条件）
+従業員数（常勤）: ${employees || '不明'}名
+資本金: ${capitalAmount || '不明'}
 年商: ${revenue ? `${revenue}万円` : '不明'}
-補助金申請歴: ${hasHistory ?? '不明'}
-現在のシステム: ${currentSystem ?? '特になし'}
-導入予定ツール: WASIMIL（PMS・予約エンジン・DXプラットフォーム）
+客室数: ${roomCount || '不明'}
+補助金申請歴: ${hasHistory ?? 'なし'}
+現在のシステム: ${currentSystem || '特になし'}
+導入予定ツール: WASIMIL（PMS・予約エンジン・DXプラットフォーム — 4プロセス以上対応）
+賃上げ計画: ${wageRaisePlan ?? '未定'}
+gBizIDプライム: ${gbizIdStatus ?? '不明'}
+SECURITY ACTION: ${securityActionDone ? '完了' : '未実施'}
+みらデジ経営チェック: ${miradejiDone ? '完了' : '未実施'}
 備考: ${note ?? 'なし'}`
 
   try {

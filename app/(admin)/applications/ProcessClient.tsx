@@ -240,7 +240,21 @@ export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }
   async function runScreening() {
     setAiLoading(true); setAiResult(null)
     try {
-      const res = await fetch('/api/screening', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientName: client.clients.name, employees: '', applicationId: client.id }) })
+      const res = await fetch('/api/screening', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+        clientName: client.clients.name,
+        employees: client.clients.employee_count ?? '',
+        capitalAmount: client.clients.capital_amount ?? '',
+        revenue: (client as any).revenue ?? '',
+        industry: client.clients.industry ?? '宿泊業',
+        roomCount: client.clients.room_count ?? '',
+        hasHistory: (client as any).subsidy_history ?? 'なし',
+        currentSystem: (client as any).current_system ?? '',
+        wageRaisePlan: (client as any).wage_raise_plan ?? '未定',
+        gbizIdStatus: client.gbiz_id_status ?? '未取得',
+        securityActionDone: client.security_action_done ?? false,
+        miradejiDone: client.miradeji_done ?? false,
+        applicationId: client.id,
+      }) })
       const data = await res.json()
       setAiResult(data.result ?? null)
     } catch { /* ignore */ }
@@ -753,6 +767,10 @@ function ClientInfoTab({ client, onSaved }: { client: AppRow; onSaved: (c?: Part
     capital_amount: client.clients.capital_amount ?? '',
     room_count: client.clients.room_count?.toString() ?? '',
     corporate_number: client.clients.corporate_number ?? '',
+    revenue: (client as any).revenue ?? '',
+    current_system: (client as any).current_system ?? '',
+    subsidy_history: (client as any).subsidy_history ?? 'なし',
+    wage_raise_plan: (client as any).wage_raise_plan ?? '未定',
     // app fields
     gbiz_id_status: client.gbiz_id_status ?? '未取得',
     security_action_done: client.security_action_done ?? false,
@@ -784,6 +802,10 @@ function ClientInfoTab({ client, onSaved }: { client: AppRow; onSaved: (c?: Part
             capital_amount: f.capital_amount || null,
             room_count: f.room_count ? parseInt(f.room_count) : null,
             corporate_number: f.corporate_number || null,
+            revenue: f.revenue || null,
+            current_system: f.current_system || null,
+            subsidy_history: f.subsidy_history || 'なし',
+            wage_raise_plan: f.wage_raise_plan || '未定',
           },
           appFields: {
             cs_name: f.cs_name || null, cs_email: f.cs_email || null,
@@ -832,10 +854,22 @@ function ClientInfoTab({ client, onSaved }: { client: AppRow; onSaved: (c?: Part
             {['宿泊業', 'サービス業', '小売業', '卸売業', '製造業', 'その他'].map(t => <option key={t}>{t}</option>)}
           </select>
         </div>
-        <div><label style={lbl}>従業員数</label><input type="number" value={f.employee_count} onChange={e => set('employee_count', e.target.value)} placeholder="例: 45" style={inp} /></div>
+        <div><label style={lbl}>従業員数（常勤）</label><input type="number" value={f.employee_count} onChange={e => set('employee_count', e.target.value)} placeholder="例: 45" style={inp} /></div>
         <div><label style={lbl}>客室数</label><input type="number" value={f.room_count} onChange={e => set('room_count', e.target.value)} placeholder="例: 25" style={inp} /></div>
         <div><label style={lbl}>資本金</label><input value={f.capital_amount} onChange={e => set('capital_amount', e.target.value)} placeholder="例: 1000万円" style={inp} /></div>
+        <div><label style={lbl}>年商（万円）</label><input value={f.revenue} onChange={e => set('revenue', e.target.value)} placeholder="例: 8000" style={inp} /></div>
         <div><label style={lbl}>法人番号</label><input value={f.corporate_number} onChange={e => set('corporate_number', e.target.value)} placeholder="13桁" style={inp} /></div>
+        <div><label style={lbl}>現在のシステム</label><input value={f.current_system} onChange={e => set('current_system', e.target.value)} placeholder="例: TLリンカーン" style={inp} /></div>
+        <div><label style={lbl}>補助金申請歴</label>
+          <select value={f.subsidy_history} onChange={e => set('subsidy_history', e.target.value)} style={{ ...inp, cursor: 'pointer' }}>
+            {['なし', 'IT導入補助金 受給済', 'その他補助金 受給済'].map(t => <option key={t}>{t}</option>)}
+          </select>
+        </div>
+        <div><label style={lbl}>賃上げ計画</label>
+          <select value={f.wage_raise_plan} onChange={e => set('wage_raise_plan', e.target.value)} style={{ ...inp, cursor: 'pointer' }}>
+            {['未定', '計画あり（地域別最低賃金+50円以上）', '計画あり（+30円以上）', '計画なし'].map(t => <option key={t}>{t}</option>)}
+          </select>
+        </div>
       </div>
 
       <div style={{ fontSize: 12, fontWeight: 700, color: C.ink, marginBottom: 8, borderBottom: `1px solid ${C.border}`, paddingBottom: 6 }}>申請前の準備状況</div>
