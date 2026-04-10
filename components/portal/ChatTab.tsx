@@ -1,8 +1,7 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
-import { useChat } from '@/hooks/useChat'
-import type { Client } from '@/types/database'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import type { Client, Message } from '@/types/database'
 
 const C = {
   bg: '#f5f4f0',
@@ -11,12 +10,10 @@ const C = {
   border: '#e5e2da',
   borderMid: '#d0cdc4',
   ink: '#1a1814',
-  inkMid: '#5a5650',
   inkFaint: '#9b9890',
   accent: '#c45c1a',
   green: '#2d7a47',
   blue: '#1a5fa8',
-  blueBg: '#eaf2fc',
   slack: '#4a154b',
 } as const
 
@@ -27,10 +24,25 @@ interface Props {
 }
 
 export function ChatTab({ applicationId, client, csName }: Props) {
-  const { messages, sendMessage, loading } = useChat(applicationId)
+  const [messages, setMessages] = useState<Message[]>([])
+  const [loading, setLoading] = useState(true)
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+
+  const loadMessages = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/chat-messages?applicationId=${applicationId}`)
+      if (res.ok) setMessages(await res.json())
+    } catch { /* ignore */ }
+    finally { setLoading(false) }
+  }, [applicationId])
+
+  useEffect(() => {
+    loadMessages()
+    const interval = setInterval(loadMessages, 5000)
+    return () => clearInterval(interval)
+  }, [loadMessages])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -40,8 +52,22 @@ export function ChatTab({ applicationId, client, csName }: Props) {
     if (!input.trim() || sending) return
     setSending(true)
     try {
-      await sendMessage(input.trim(), 'customer', client.contact_name ?? client.name)
-      setInput('')
+      const res = await fetch('/api/chat-messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          applicationId,
+          content: input.trim(),
+          senderType: 'customer',
+          senderName: client.contact_name ?? client.name,
+        }),
+      })
+      if (res.ok) {
+        setInput('')
+        loadMessages()
+      } else {
+        alert('送信に失敗しました')
+      }
     } catch {
       alert('送信に失敗しました')
     } finally {
@@ -63,8 +89,6 @@ export function ChatTab({ applicationId, client, csName }: Props) {
           <div style={{ fontSize: 11, color: C.inkFaint, display: 'flex', gap: 4, alignItems: 'center' }}>
             <span style={{ width: 6, height: 6, background: C.green, borderRadius: '50%', display: 'inline-block' }} />
             オンライン
-            <span style={{ color: C.slack, marginLeft: 6, fontWeight: 700, fontSize: 10 }}>■</span>
-            <span>Slack連携中</span>
           </div>
         </div>
       </div>
@@ -92,17 +116,9 @@ export function ChatTab({ applicationId, client, csName }: Props) {
                 <div style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 11, color: C.inkFaint }}>
                   <span style={{ fontWeight: 600 }}>{msg.sender_name}</span>
                   <span>{new Date(msg.created_at).toLocaleString('ja-JP', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).replace('/', '-')}</span>
-                  {msg.from_slack && (
-                    <span style={{ background: C.slack, color: '#fff', fontSize: 9, padding: '1px 6px', borderRadius: 4, fontWeight: 700 }}>Slackより</span>
-                  )}
                 </div>
                 <div style={{ background: isMe ? C.accent : C.surface, color: isMe ? '#fff' : C.ink, border: isMe ? 'none' : `1px solid ${C.border}`, borderRadius: isMe ? '16px 4px 16px 16px' : '4px 16px 16px 16px', padding: '10px 14px', fontSize: 13, lineHeight: 1.6, boxShadow: '0 1px 3px rgba(0,0,0,0.07)' }}>
                   {msg.content}
-                </div>
-                <div style={{ fontSize: 10, color: C.inkFaint, display: 'flex', alignItems: 'center', gap: 3 }}>
-                  {msg.from_slack ? (
-                    <span><span style={{ color: C.green }}>✓</span> Slack連携済</span>
-                  ) : null}
                 </div>
               </div>
             </div>
@@ -126,14 +142,10 @@ export function ChatTab({ applicationId, client, csName }: Props) {
           <button
             onClick={handleSend}
             disabled={!input.trim() || sending}
-            style={{ background: input.trim() && !sending ? C.accent : C.border, color: input.trim() && !sending ? '#fff' : C.inkFaint, border: 'none', borderRadius: 10, width: 44, height: 44, fontSize: 20, cursor: input.trim() && !sending ? 'pointer' : 'not-allowed', flexShrink: 0, transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            style={{ background: input.trim() && !sending ? C.accent : C.border, color: input.trim() && !sending ? '#fff' : C.inkFaint, border: 'none', borderRadius: 10, width: 44, height: 44, fontSize: 20, cursor: input.trim() && !sending ? 'pointer' : 'not-allowed', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
             ↑
           </button>
-        </div>
-        <div style={{ fontSize: 10, color: C.inkFaint, marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span style={{ color: C.slack, fontWeight: 700 }}>■</span>
-          メッセージはSlackにリアルタイム連携されます
         </div>
       </div>
     </div>

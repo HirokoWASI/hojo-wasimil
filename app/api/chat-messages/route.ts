@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 
+const SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN ?? ''
+
 export async function GET(req: NextRequest) {
   const applicationId = req.nextUrl.searchParams.get('applicationId')
   if (!applicationId) return NextResponse.json([], { status: 200 })
@@ -22,6 +24,8 @@ export async function POST(req: NextRequest) {
   }
 
   const supabase = createServiceClient()
+
+  // メッセージ保存
   const { data, error } = await supabase
     .from('messages')
     .insert({
@@ -34,5 +38,30 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Slack連携: アプリケーションのslack_channelに投稿
+  if (SLACK_BOT_TOKEN) {
+    try {
+      const { data: app } = await supabase
+        .from('applications')
+        .select('slack_channel, clients(name)')
+        .eq('id', applicationId)
+        .single()
+
+      const channel = app?.slack_channel
+      if (channel) {
+        const clientName = ((app.clients as unknown) as { name: string } | null)?.name ?? ''
+        const prefix = senderType === 'customer' ? `[${clientName}] ${senderName}` : `[CS] ${senderName}`
+        await fetch('https://slack.com/api/chat.postMessage', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${SLACK_BOT_TOKEN}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ channel, text: `${prefix}: ${content}` }),
+        })
+      }
+    } catch {
+      // Slack投稿失敗してもメッセージ保存は成功しているのでエラーにしない
+    }
+  }
+
   return NextResponse.json(data)
 }
