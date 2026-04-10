@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { createClient as createSalesClient } from '@supabase/supabase-js'
 
-const SALES_SUPABASE_URL = process.env.SALES_SUPABASE_URL ?? ''
-const SALES_SUPABASE_KEY = process.env.SALES_SUPABASE_SERVICE_KEY ?? ''
+const SALES_SUPABASE_URL = process.env.SALES_SUPABASE_URL ?? 'https://bnqejljedwkmlkykdhcr.supabase.co'
+const SALES_SUPABASE_KEY = process.env.SALES_SUPABASE_ANON_KEY ?? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJucWVqbGplZHdrbWxreWtkaGNyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyMTI5NDcsImV4cCI6MjA5MDc4ODk0N30.sYscNcRoIBFbITzMNIfE0bW15UHBhQ3hYcgrExdus0E'
 
 const REQUIRED_DOCS = [
   '履歴事項全部証明書',
