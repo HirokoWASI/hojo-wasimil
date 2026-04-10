@@ -48,6 +48,7 @@ export interface Application {
   slack_channel: string | null
   ai_result: AiResult | null
   notes: string | null
+  application_round: string | null
   program_id: string | null
   round_id: string | null
   tool_name: string | null

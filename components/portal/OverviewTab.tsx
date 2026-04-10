@@ -47,13 +47,18 @@ export function OverviewTab({ application, onChatClick, subsidyInfo }: Props) {
         <div style={{ background: 'linear-gradient(135deg, #c45c1a, #e8772a)', padding: '24px 28px', color: '#fff' }}>
           <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 4 }}>{organizer}</div>
           <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>{subsidyInfo?.name ?? application.subsidy_type}</div>
-          {application.subsidy_frame && (
-            <div style={{ fontSize: 14, opacity: 0.9 }}>{application.subsidy_frame}</div>
-          )}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {application.subsidy_frame && (
+              <span style={{ fontSize: 13, opacity: 0.9, background: 'rgba(255,255,255,0.2)', padding: '2px 10px', borderRadius: 6 }}>{application.subsidy_frame}</span>
+            )}
+            {application.application_round && (
+              <span style={{ fontSize: 13, opacity: 0.9, background: 'rgba(255,255,255,0.2)', padding: '2px 10px', borderRadius: 6 }}>{application.application_round}</span>
+            )}
+          </div>
         </div>
         <div style={{ padding: '20px 28px', display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16 }}>
           {[
-            ['最大補助額', amount, C.accent],
+            ['補助額', amount, C.accent],
             ['補助率', rate, C.blue],
             ['申請期限', application.deadline ? `${new Date(application.deadline).toLocaleDateString('ja-JP')}${daysLeft != null ? `（残${daysLeft}日）` : ''}` : (subsidyInfo?.application_end ?? '—'), daysLeft != null && daysLeft < 14 ? C.red : C.ink],
           ].map(([label, value, color]) => (
