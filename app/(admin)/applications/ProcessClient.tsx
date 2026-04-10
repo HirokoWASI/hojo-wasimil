@@ -72,7 +72,6 @@ export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }
   const initialSel = searchParams.get('sel')
   const [apps, setApps] = useState<AppRow[]>(initialApps)
   const [selId, setSelId] = useState<string>(initialSel && initialApps.some(a => a.id === initialSel) ? initialSel : initialApps[0]?.id ?? '')
-  const [view, setView] = useState<'admin' | 'portal'>('admin')
   const [uploadDocId, setUploadDocId] = useState<string | null>(null)
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -215,19 +214,6 @@ export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }
         </div>
       )}
 
-      {/* View toggle */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <div style={{ display: 'flex', border: `1px solid ${C.border}`, borderRadius: 8, overflow: 'hidden', background: C.bg }}>
-          {[{ id: 'admin', label: '🔧 管理画面（CS）' }, { id: 'portal', label: '🏨 お客様ポータル' }].map(v => (
-            <button key={v.id} onClick={() => setView(v.id as 'admin' | 'portal')} style={{ background: view === v.id ? C.accent : 'transparent', color: view === v.id ? '#fff' : C.inkMid, border: 'none', padding: '8px 20px', fontSize: 12, fontWeight: view === v.id ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}>
-              {v.label}
-            </button>
-          ))}
-        </div>
-        <span style={{ fontSize: 12, color: C.inkFaint }}>
-          {view === 'portal' ? `${client.clients.name} 様からの視点` : 'AZOO CS チーム 管理画面'}
-        </span>
-      </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 20, alignItems: 'start' }}>
 
@@ -242,7 +228,7 @@ export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }
             const p    = req > 0 ? Math.round(done / req * 100) : 0
             const urg  = !a.daysLeft ? C.inkFaint : a.daysLeft < 14 ? C.red : a.daysLeft < 28 ? C.yellow : C.green
             return (
-              <div key={a.id} onClick={() => { setSelId(a.id); setView('admin') }} style={{ padding: '14px 18px', borderBottom: `1px solid ${C.border}`, cursor: 'pointer', background: selId === a.id ? C.accentBg : 'transparent', borderLeft: selId === a.id ? `3px solid ${C.accent}` : '3px solid transparent', transition: 'all 0.15s' }}>
+              <div key={a.id} onClick={() => setSelId(a.id)} style={{ padding: '14px 18px', borderBottom: `1px solid ${C.border}`, cursor: 'pointer', background: selId === a.id ? C.accentBg : 'transparent', borderLeft: selId === a.id ? `3px solid ${C.accent}` : '3px solid transparent', transition: 'all 0.15s' }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{a.clients.name}</div>
                 <div style={{ fontSize: 11, color: C.inkFaint, marginTop: 2 }}>{a.subsidy_type}</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
@@ -304,15 +290,12 @@ export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }
           </div>
 
           {/* ポータルURL */}
-          {view === 'admin' && (
-            <PortalUrlCard client={client} onTokenGenerated={(token, expires) => {
-              setApps(prev => prev.map(a => a.id === client.id ? { ...a, clients: { ...a.clients, portal_token: token, token_expires_at: expires } } : a))
-            }} />
-          )}
+          <PortalUrlCard client={client} onTokenGenerated={(token, expires) => {
+            setApps(prev => prev.map(a => a.id === client.id ? { ...a, clients: { ...a.clients, portal_token: token, token_expires_at: expires } } : a))
+          }} />
 
-          {/* ── 管理画面 ── */}
-          {view === 'admin' && (
-            <>
+          {/* ── 書類・アラート管理 ── */}
+          <>
               {/* 書類テーブル */}
               <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                 <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.border}`, background: C.surfaceAlt, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -390,103 +373,6 @@ export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }
                 ))}
               </div>
             </>
-          )}
-
-          {/* ── お客様ポータル ── */}
-          {view === 'portal' && (
-            <>
-              <div style={{ background: C.accentBg, border: `1px solid ${C.accentBorder}`, borderRadius: 12, padding: '16px 20px' }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: C.accent, marginBottom: 4 }}>📋 書類のご提出をお願いします</div>
-                <div style={{ fontSize: 12, color: C.inkMid }}>
-                  申請に必要な書類をご確認いただき、各書類をアップロードしてください。ご不明な点は担当の {client.cs_name}（{client.cs_email}）までご連絡ください。
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {client.docs.map(doc => {
-                  const isOpen = uploadDocId === doc.id
-                  return (
-                    <div key={doc.id} style={{ background: C.surface, border: `1px solid ${doc.status === '差し戻し' ? C.redBorder : C.border}`, borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                            <span style={{ fontSize: 14, fontWeight: 700 }}>{doc.name}</span>
-                            {doc.required && (
-                              <span style={{ fontSize: 10, color: C.red, background: C.redBg, border: `1px solid ${C.redBorder}`, padding: '1px 7px', borderRadius: 10, fontWeight: 700 }}>必須</span>
-                            )}
-                          </div>
-                          {doc.submitted_at && <div style={{ fontSize: 12, color: C.inkFaint }}>提出日: {doc.submitted_at}</div>}
-                          {doc.status === '差し戻し' && doc.note && (
-                            <div style={{ marginTop: 8, background: C.redBg, border: `1px solid ${C.redBorder}`, borderRadius: 8, padding: '10px 14px' }}>
-                              <div style={{ fontSize: 11, color: C.red, fontWeight: 700, marginBottom: 4 }}>↩ 修正依頼</div>
-                              <div style={{ fontSize: 12, color: C.inkMid }}>{doc.note}</div>
-                            </div>
-                          )}
-                          {doc.status === '承認済' && <div style={{ fontSize: 12, color: C.green, marginTop: 4 }}>✅ 受理・承認済みです。ありがとうございます。</div>}
-                          {doc.status === '確認中' && <div style={{ fontSize: 12, color: C.yellow, marginTop: 4 }}>⏳ 担当者が内容を確認中です。</div>}
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
-                          <DocBadge status={doc.status} />
-                          {(doc.status === '未提出' || doc.status === '差し戻し') && (
-                            <button
-                              onClick={() => {
-                                if (isOpen) { setUploadDocId(null); setUploadedFile(null) }
-                                else { setUploadDocId(doc.id); setUploadedFile(null) }
-                              }}
-                              style={{ background: C.accent, color: '#fff', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
-                            >
-                              {doc.status === '差し戻し' ? '↩ 再提出' : '⬆ 提出する'}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-
-                      {isOpen && (
-                        <div style={{ marginTop: 16, borderTop: `1px solid ${C.border}`, paddingTop: 16 }}>
-                          <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 10 }}>ファイルをアップロード</div>
-                          <div
-                            onDragOver={e => e.preventDefault()}
-                            onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) setUploadedFile(f) }}
-                            onClick={() => fileRef.current?.click()}
-                            style={{ border: `2px dashed ${uploadedFile ? C.greenBorder : C.borderMid}`, borderRadius: 10, padding: '28px 20px', textAlign: 'center' as const, cursor: 'pointer', background: uploadedFile ? C.greenBg : C.surfaceAlt, transition: 'all 0.2s' }}
-                          >
-                            <input ref={fileRef} type="file" style={{ display: 'none' }} onChange={e => { if (e.target.files?.[0]) setUploadedFile(e.target.files[0]) }} />
-                            <div style={{ fontSize: 28, marginBottom: 8 }}>{uploadedFile ? '📎' : '📂'}</div>
-                            {uploadedFile ? (
-                              <div style={{ fontSize: 13, fontWeight: 700, color: C.green }}>
-                                {uploadedFile.name}
-                                <div style={{ fontSize: 11, fontWeight: 400, color: C.inkFaint, marginTop: 2 }}>{(uploadedFile.size / 1024).toFixed(0)} KB</div>
-                              </div>
-                            ) : (
-                              <div style={{ fontSize: 13, color: C.inkMid }}>
-                                ドラッグ＆ドロップ または クリックして選択
-                                <div style={{ fontSize: 11, color: C.inkFaint, marginTop: 4 }}>PDF・Excel・Word対応</div>
-                              </div>
-                            )}
-                          </div>
-                          <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
-                            <button
-                              onClick={handleFileSubmit}
-                              disabled={!uploadedFile || uploading}
-                              style={{ flex: 1, background: uploadedFile && !uploading ? C.accent : C.border, color: uploadedFile && !uploading ? '#fff' : C.inkFaint, border: 'none', borderRadius: 8, padding: '10px 20px', fontWeight: 700, fontSize: 13, cursor: uploadedFile && !uploading ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}
-                            >
-                              {uploading ? '⏳ アップロード中...' : '提出する'}
-                            </button>
-                            <GhostBtn label="キャンセル" onClick={() => { setUploadDocId(null); setUploadedFile(null) }} />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-
-              <div style={{ background: C.blueBg, border: `1px solid ${C.blueBorder}`, borderRadius: 12, padding: '16px 20px' }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: C.blue, marginBottom: 6 }}>お問い合わせ</div>
-                <div style={{ fontSize: 12, color: C.inkMid }}>担当: {client.cs_name} / {client.cs_email}</div>
-              </div>
-            </>
-          )}
         </div>
       </div>
 
