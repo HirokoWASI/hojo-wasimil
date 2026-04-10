@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import AdminNav from './AdminNav'
 
 const C = {
   bg: '#f5f4f0',
@@ -20,14 +21,6 @@ const C = {
   yellowBg: '#fdf8e8',
   yellowBorder: '#e8d490',
 } as const
-
-const NAV = [
-  { href: '/dashboard',    icon: '▤',  label: 'ダッシュボード' },
-  { href: '/applications', icon: '📋', label: '顧客プロセス管理' },
-  { href: '/screening',    icon: '⚡', label: 'AI適格審査' },
-  { href: '/draft',        icon: '✦',  label: '書類ドラフト生成' },
-  { href: '/architecture', icon: '◻',  label: 'システム設計' },
-]
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = createClient()
@@ -75,9 +68,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <div style={{ display: 'flex', flex: 1 }}>
         {/* サイドバー */}
         <div style={{ width: 210, background: C.surface, borderRight: `1px solid ${C.border}`, padding: '20px 0', display: 'flex', flexDirection: 'column', gap: 2, position: 'sticky', top: 56, height: 'calc(100vh - 56px)', overflowY: 'auto' }}>
-          {NAV.map(n => (
-            <NavItem key={n.href} href={n.href} icon={n.icon} label={n.label} />
-          ))}
+          <AdminNav />
           <div style={{ flex: 1 }} />
           <div style={{ padding: '12px 20px', borderTop: `1px solid ${C.border}`, fontSize: 11, color: C.inkFaint }}>
             {user.email}
@@ -93,25 +84,3 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   )
 }
 
-function NavItem({ href, icon, label }: { href: string; icon: string; label: string }) {
-  return (
-    <Link
-      href={href}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        padding: '10px 20px',
-        fontSize: 13,
-        fontWeight: 500,
-        color: '#5a5650',
-        textDecoration: 'none',
-        borderLeft: '3px solid transparent',
-        transition: 'all 0.15s',
-      }}
-    >
-      <span>{icon}</span>
-      {label}
-    </Link>
-  )
-}
