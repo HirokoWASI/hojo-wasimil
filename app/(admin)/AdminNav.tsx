@@ -16,8 +16,8 @@ const NAV = [
   { href: '/applications', icon: '📋', label: '顧客プロセス管理' },
   { href: '/screening',    icon: '⚡', label: 'AI適格審査' },
   { href: '/draft',        icon: '✦',  label: '書類ドラフト生成' },
-  { href: '/chat',         icon: '💬', label: 'チャット管理' },
-  { href: '/architecture', icon: '◻',  label: 'システム設計' },
+  { href: '/chat',           icon: '💬', label: 'チャット管理' },
+  { href: '/subsidy-lookup', icon: '🔍', label: '補助金情報調査' },
 ]
 
 export default function AdminNav() {
