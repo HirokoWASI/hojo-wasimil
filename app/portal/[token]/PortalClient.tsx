@@ -3,9 +3,7 @@
 import { useState } from 'react'
 import type { Application, Client, Document, ScreeningLog } from '@/types/database'
 import { OverviewTab } from '@/components/portal/OverviewTab'
-import { AITab } from '@/components/portal/AITab'
 import { FlowTab } from '@/components/portal/FlowTab'
-import { DocsTab } from '@/components/portal/DocsTab'
 import { ChatTab } from '@/components/portal/ChatTab'
 
 const C = {
@@ -20,7 +18,7 @@ const C = {
   slack: '#4a154b',
 } as const
 
-type Tab = 'overview' | 'ai' | 'flow' | 'docs' | 'chat'
+type Tab = 'overview' | 'flow' | 'chat'
 
 interface SubsidyInfo {
   name: string; organizer: string | null; summary: string | null
@@ -55,9 +53,7 @@ export function PortalClient({ client, applications, documents, screeningLogs, s
 
   const TABS: { id: Tab; label: string }[] = [
     { id: 'overview', label: '補助金概要' },
-    { id: 'ai',       label: 'AI診断結果' },
-    { id: 'flow',     label: '申請フロー' },
-    { id: 'docs',     label: `書類提出 ${approvedDocs}/${reqDocs.length}` },
+    { id: 'flow',     label: `申請フロー ${approvedDocs}/${reqDocs.length}` },
     { id: 'chat',     label: '担当者チャット 💬' },
   ]
 
@@ -150,20 +146,8 @@ export function PortalClient({ client, applications, documents, screeningLogs, s
         {activeTab === 'overview' && (
           <OverviewTab application={selectedApp} onChatClick={() => setActiveTab('chat')} subsidyInfo={subsidyInfoMap?.[selectedApp?.subsidy_type ?? ''] ?? null} />
         )}
-        {activeTab === 'ai' && (
-          <AITab screeningLog={screeningLog} onChatClick={() => setActiveTab('chat')} />
-        )}
         {activeTab === 'flow' && (
-          <FlowTab application={selectedApp} onDocsClick={() => setActiveTab('docs')} onChatClick={() => setActiveTab('chat')} />
-        )}
-        {activeTab === 'docs' && (
-          <DocsTab
-            documents={appDocs}
-            applicationId={selectedAppId}
-            onRefresh={handleDocsRefresh}
-            csName={selectedApp?.cs_name ?? '担当者'}
-            csEmail={selectedApp?.cs_email ?? ''}
-          />
+          <FlowTab application={selectedApp} documents={appDocs} screeningLog={screeningLog} onChatClick={() => setActiveTab('chat')} onRefresh={handleDocsRefresh} />
         )}
         {activeTab === 'chat' && (
           <ChatTab applicationId={selectedAppId} client={client} csName={selectedApp?.cs_name ?? '担当者'} />
