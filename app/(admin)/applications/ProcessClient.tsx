@@ -287,9 +287,12 @@ export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }
 
   return (
     <div style={{ maxWidth: 1200 }}>
-      <div style={{ marginBottom: 24 }}>
-        <h2 style={{ margin: '0 0 4px', fontSize: 20, fontWeight: 800 }}>顧客プロセス管理</h2>
-        <p style={{ margin: 0, color: C.inkFaint, fontSize: 13 }}>書類提出・審査・アラート送信を一元管理します</p>
+      <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <h2 style={{ margin: '0 0 4px', fontSize: 20, fontWeight: 800 }}>顧客プロセス管理</h2>
+          <p style={{ margin: 0, color: C.inkFaint, fontSize: 13 }}>書類提出・審査・アラート送信を一元管理します</p>
+        </div>
+        <button onClick={() => setShowRegisterModal(true)} style={{ background: C.accent, color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' as const }}>＋ 新規顧客登録</button>
       </div>
 
       {/* Toast */}
@@ -304,9 +307,8 @@ export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }
 
         {/* 案件リスト */}
         <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-          <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.border}`, background: C.surfaceAlt, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.border}`, background: C.surfaceAlt }}>
             <span style={{ fontSize: 11, color: C.inkFaint, fontWeight: 700, textTransform: 'uppercase' as const }}>申請案件</span>
-            <button onClick={() => setShowRegisterModal(true)} style={{ background: C.accent, color: '#fff', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>＋ 新規</button>
           </div>
           {apps.map(a => {
             const req  = a.docs.filter(d => d.required).length
