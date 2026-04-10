@@ -73,6 +73,7 @@ export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }
   const [apps, setApps] = useState<AppRow[]>(initialApps)
   const [selId, setSelId] = useState<string>(initialSel && initialApps.some(a => a.id === initialSel) ? initialSel : initialApps[0]?.id ?? '')
   const [showRegisterModal, setShowRegisterModal] = useState(false)
+  const [subTab, setSubTab] = useState<'docs' | 'ai' | 'chat' | 'draft'>('docs')
   const [uploadDocId, setUploadDocId] = useState<string | null>(null)
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -86,6 +87,18 @@ export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }
   const [alertSent, setAlertSent] = useState(false)
   const [alertSending, setAlertSending] = useState(false)
   const [toast, setToast] = useState('')
+  // AI審査
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiResult, setAiResult] = useState<{ score: number; eligible: boolean; frame: string; maxAmount: string; subsidyRate: string; reasons: string[]; risks: string[]; nextAction: string } | null>(null)
+  // チャット
+  const [chatMessages, setChatMessages] = useState<{ id: string; sender_type: string; sender_name: string; content: string; created_at: string }[]>([])
+  const [chatInput, setChatInput] = useState('')
+  const [chatSending, setChatSending] = useState(false)
+  // ドラフト
+  const [draftType, setDraftType] = useState('事業計画書')
+  const [draftContent, setDraftContent] = useState('')
+  const [draftLoading, setDraftLoading] = useState(false)
+
   const fileRef = useRef<HTMLInputElement>(null)
   const supabase = createClient()
 
@@ -214,6 +227,41 @@ export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }
     }
   }
 
+  // AI審査
+  async function runScreening() {
+    setAiLoading(true); setAiResult(null)
+    try {
+      const res = await fetch('/api/screening', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientName: client.clients.name, employees: '', applicationId: client.id }) })
+      const data = await res.json()
+      setAiResult(data.result ?? null)
+    } catch { /* ignore */ }
+    finally { setAiLoading(false) }
+  }
+
+  // チャット
+  async function loadChat() {
+    const res = await fetch(`/api/chat-messages?applicationId=${client.id}`)
+    if (res.ok) setChatMessages(await res.json())
+  }
+  async function sendChat() {
+    if (!chatInput.trim() || chatSending) return
+    setChatSending(true)
+    const res = await fetch('/api/chat-messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ applicationId: client.id, content: chatInput.trim(), senderType: 'cs', senderName: client.cs_name ?? 'CS' }) })
+    if (res.ok) { const msg = await res.json(); setChatMessages(prev => [...prev, msg]); setChatInput('') }
+    setChatSending(false)
+  }
+
+  // ドラフト生成
+  async function generateDraft() {
+    setDraftLoading(true); setDraftContent('')
+    try {
+      const res = await fetch('/api/draft', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ applicationId: client.id, docType: draftType }) })
+      const data = await res.json()
+      setDraftContent(data.draft ?? data.error ?? 'エラー')
+    } catch { setDraftContent('生成に失敗しました') }
+    finally { setDraftLoading(false) }
+  }
+
   return (
     <div style={{ maxWidth: 1200 }}>
       <div style={{ marginBottom: 24 }}>
@@ -309,8 +357,17 @@ export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }
             setApps(prev => prev.map(a => a.id === client.id ? { ...a, clients: { ...a.clients, portal_token: token, token_expires_at: expires } } : a))
           }} />
 
-          {/* ── 書類・アラート管理 ── */}
-          <>
+          {/* サブタブ */}
+          <div style={{ display: 'flex', gap: 2, background: C.bg, borderRadius: 10, padding: 4, border: `1px solid ${C.border}` }}>
+            {([['docs', '📋 書類管理'], ['ai', '⚡ AI審査'], ['chat', '💬 チャット'], ['draft', '✦ ドラフト生成']] as const).map(([id, label]) => (
+              <button key={id} onClick={() => { setSubTab(id); if (id === 'chat') loadChat() }} style={{ flex: 1, background: subTab === id ? C.surface : 'transparent', color: subTab === id ? C.ink : C.inkMid, border: subTab === id ? `1px solid ${C.border}` : '1px solid transparent', borderRadius: 8, padding: '7px 12px', fontSize: 12, fontWeight: subTab === id ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit' }}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* ── 書類管理タブ ── */}
+          {subTab === 'docs' && <>
               {/* 書類テーブル */}
               <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                 <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.border}`, background: C.surfaceAlt, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -387,7 +444,103 @@ export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }
                   </div>
                 ))}
               </div>
-            </>
+          </>}
+
+          {/* ── AI審査タブ ── */}
+          {subTab === 'ai' && (
+            <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>AI適格性審査</h3>
+                <button onClick={runScreening} disabled={aiLoading} style={{ background: aiLoading ? C.border : C.accent, color: aiLoading ? C.inkFaint : '#fff', border: 'none', borderRadius: 8, padding: '8px 18px', fontSize: 12, fontWeight: 700, cursor: aiLoading ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                  {aiLoading ? '診断中...' : '⚡ AI診断を実行'}
+                </button>
+              </div>
+              {client.ai_result && !aiResult && (() => { const r = client.ai_result!; return (
+                <div>
+                  <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+                    <div style={{ background: r.score >= 70 ? C.greenBg : C.redBg, border: `1px solid ${r.score >= 70 ? C.greenBorder : C.redBorder}`, borderRadius: 10, padding: '14px 20px', flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div><div style={{ fontSize: 10, color: C.inkFaint }}>スコア</div><div style={{ fontSize: 32, fontWeight: 800, color: r.score >= 70 ? C.green : C.red }}>{r.score}</div></div>
+                      <div style={{ textAlign: 'right' }}><div style={{ fontSize: 14 }}>{r.eligible ? '✅ 申請推奨' : '⚠️ 要確認'}</div><div style={{ fontSize: 12, color: C.inkFaint, marginTop: 2 }}>{r.frame}</div></div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
+                    <div style={{ background: C.accentBg, borderRadius: 8, padding: '10px 14px' }}><div style={{ fontSize: 10, color: C.inkFaint }}>最大補助額</div><div style={{ fontSize: 16, fontWeight: 800, color: C.accent }}>{r.maxAmount}</div></div>
+                    <div style={{ background: C.blueBg, borderRadius: 8, padding: '10px 14px' }}><div style={{ fontSize: 10, color: C.inkFaint }}>補助率</div><div style={{ fontSize: 16, fontWeight: 800, color: C.blue }}>{r.subsidyRate}</div></div>
+                  </div>
+                  {r.reasons.length > 0 && <div style={{ marginBottom: 8 }}>{r.reasons.map((x, i) => <div key={i} style={{ fontSize: 12, color: C.inkMid, padding: '2px 0' }}><span style={{ color: C.green }}>✓</span> {x}</div>)}</div>}
+                  {r.risks.length > 0 && <div style={{ background: C.redBg, borderRadius: 8, padding: '10px 14px', marginBottom: 8 }}>{r.risks.map((x, i) => <div key={i} style={{ fontSize: 12, color: C.red }}>{x}</div>)}</div>}
+                  <div style={{ background: C.greenBg, borderRadius: 8, padding: '10px 14px' }}><div style={{ fontSize: 10, color: C.green, fontWeight: 700 }}>ネクストアクション</div><div style={{ fontSize: 12 }}>{r.nextAction}</div></div>
+                </div>
+              )})()}
+              {aiResult && (
+                <div>
+                  <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+                    <div style={{ background: aiResult.score >= 70 ? C.greenBg : C.redBg, border: `1px solid ${aiResult.score >= 70 ? C.greenBorder : C.redBorder}`, borderRadius: 10, padding: '14px 20px', flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div><div style={{ fontSize: 10, color: C.inkFaint }}>スコア</div><div style={{ fontSize: 32, fontWeight: 800, color: aiResult.score >= 70 ? C.green : C.red }}>{aiResult.score}</div></div>
+                      <div style={{ textAlign: 'right' }}><div style={{ fontSize: 14 }}>{aiResult.eligible ? '✅ 申請推奨' : '⚠️ 要確認'}</div><div style={{ fontSize: 12, color: C.inkFaint, marginTop: 2 }}>{aiResult.frame}</div></div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
+                    <div style={{ background: C.accentBg, borderRadius: 8, padding: '10px 14px' }}><div style={{ fontSize: 10, color: C.inkFaint }}>最大補助額</div><div style={{ fontSize: 16, fontWeight: 800, color: C.accent }}>{aiResult.maxAmount}</div></div>
+                    <div style={{ background: C.blueBg, borderRadius: 8, padding: '10px 14px' }}><div style={{ fontSize: 10, color: C.inkFaint }}>補助率</div><div style={{ fontSize: 16, fontWeight: 800, color: C.blue }}>{aiResult.subsidyRate}</div></div>
+                  </div>
+                  {aiResult.reasons.length > 0 && <div style={{ marginBottom: 8 }}>{aiResult.reasons.map((x, i) => <div key={i} style={{ fontSize: 12, color: C.inkMid, padding: '2px 0' }}><span style={{ color: C.green }}>✓</span> {x}</div>)}</div>}
+                  {aiResult.risks.length > 0 && <div style={{ background: C.redBg, borderRadius: 8, padding: '10px 14px', marginBottom: 8 }}>{aiResult.risks.map((x, i) => <div key={i} style={{ fontSize: 12, color: C.red }}>{x}</div>)}</div>}
+                  <div style={{ background: C.greenBg, borderRadius: 8, padding: '10px 14px' }}><div style={{ fontSize: 10, color: C.green, fontWeight: 700 }}>ネクストアクション</div><div style={{ fontSize: 12 }}>{aiResult.nextAction}</div></div>
+                </div>
+              )}
+              {!client.ai_result && !aiResult && !aiLoading && <div style={{ textAlign: 'center', padding: 24, color: C.inkFaint, fontSize: 13 }}>「AI診断を実行」で適格性を自動診断します</div>}
+              {aiLoading && <div style={{ textAlign: 'center', padding: 24, color: C.inkFaint, fontSize: 13 }}>Claude が解析中...</div>}
+            </div>
+          )}
+
+          {/* ── チャットタブ ── */}
+          {subTab === 'chat' && (
+            <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden', height: 480, display: 'flex', flexDirection: 'column' }}>
+              <div style={{ padding: '12px 16px', background: C.surfaceAlt, borderBottom: `1px solid ${C.border}`, fontSize: 13, fontWeight: 700 }}>
+                {client.clients.name} — {client.clients.contact_name ?? client.clients.name}
+              </div>
+              <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {chatMessages.length === 0 && <div style={{ textAlign: 'center', padding: 24, color: C.inkFaint, fontSize: 13 }}>メッセージなし</div>}
+                {chatMessages.map(msg => {
+                  const isMe = msg.sender_type === 'cs'
+                  return (
+                    <div key={msg.id} style={{ display: 'flex', flexDirection: isMe ? 'row-reverse' : 'row', gap: 8, alignItems: 'flex-start' }}>
+                      <div style={{ width: 30, height: 30, borderRadius: '50%', background: isMe ? C.accent : C.blue, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{isMe ? 'CS' : '客'}</div>
+                      <div style={{ maxWidth: '70%' }}>
+                        <div style={{ fontSize: 10, color: C.inkFaint, marginBottom: 2 }}>{msg.sender_name}</div>
+                        <div style={{ background: isMe ? C.accent : C.bg, color: isMe ? '#fff' : C.ink, borderRadius: isMe ? '12px 4px 12px 12px' : '4px 12px 12px 12px', padding: '8px 12px', fontSize: 13, lineHeight: 1.5 }}>{msg.content}</div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              <div style={{ borderTop: `1px solid ${C.border}`, padding: '10px 16px', display: 'flex', gap: 8 }}>
+                <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat() } }} placeholder="メッセージを入力" style={{ flex: 1, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 12px', fontSize: 13, fontFamily: 'inherit', outline: 'none', color: C.ink }} />
+                <button onClick={sendChat} disabled={!chatInput.trim() || chatSending} style={{ background: chatInput.trim() && !chatSending ? C.accent : C.border, color: chatInput.trim() && !chatSending ? '#fff' : C.inkFaint, border: 'none', borderRadius: 8, width: 40, height: 40, fontSize: 18, cursor: chatInput.trim() && !chatSending ? 'pointer' : 'not-allowed' }}>↑</button>
+              </div>
+            </div>
+          )}
+
+          {/* ── ドラフト生成タブ ── */}
+          {subTab === 'draft' && (
+            <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 20 }}>
+              <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 700 }}>書類ドラフト生成</h3>
+              <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+                <select value={draftType} onChange={e => setDraftType(e.target.value)} style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 12px', fontSize: 13, fontFamily: 'inherit', outline: 'none', color: C.ink }}>
+                  {['事業計画書', 'IT導入計画書', '申請理由書'].map(t => <option key={t}>{t}</option>)}
+                </select>
+                <button onClick={generateDraft} disabled={draftLoading} style={{ background: draftLoading ? C.border : C.accent, color: draftLoading ? C.inkFaint : '#fff', border: 'none', borderRadius: 8, padding: '8px 18px', fontSize: 12, fontWeight: 700, cursor: draftLoading ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                  {draftLoading ? '生成中...' : '✦ AIでドラフト生成'}
+                </button>
+              </div>
+              {draftContent ? (
+                <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: 16, fontSize: 13, color: C.ink, lineHeight: 1.8, whiteSpace: 'pre-wrap' as const, maxHeight: 400, overflowY: 'auto' }}>{draftContent}</div>
+              ) : (
+                <div style={{ textAlign: 'center', padding: 32, color: C.inkFaint, fontSize: 13 }}>書類種別を選択して「AIでドラフト生成」を実行してください</div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

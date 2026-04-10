@@ -12,11 +12,8 @@ const C = {
 } as const
 
 const NAV = [
-  { href: '/dashboard',    icon: '▤',  label: 'ダッシュボード' },
-  { href: '/applications', icon: '📋', label: '顧客プロセス管理' },
-  { href: '/screening',    icon: '⚡', label: 'AI適格審査' },
-  { href: '/draft',        icon: '✦',  label: '書類ドラフト生成' },
-  { href: '/chat',           icon: '💬', label: 'チャット管理' },
+  { href: '/dashboard',       icon: '▤',  label: 'ダッシュボード' },
+  { href: '/applications',   icon: '📋', label: '顧客プロセス管理' },
   { href: '/subsidy-lookup', icon: '🔍', label: '補助金管理' },
   { href: '/subsidy-collect', icon: '📡', label: '補助金情報収集' },
 ]
