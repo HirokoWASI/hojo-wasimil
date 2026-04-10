@@ -6,6 +6,16 @@ export type ApplicationStatus =
   | '採択済'
   | '不採択'
 
+export type PostGrantStatus =
+  | '交付決定'
+  | '事業実施'
+  | '実績報告'
+  | '補助金入金'
+  | '効果報告1年目'
+  | '効果報告2年目'
+  | '効果報告3年目'
+  | '完了'
+
 export type DocumentStatus =
   | '未提出'
   | '提出済'
@@ -57,6 +67,8 @@ export interface Application {
   gbiz_id_status: string | null
   security_action_done: boolean
   miradeji_done: boolean
+  post_grant_status: PostGrantStatus | null
+  post_grant_notes: string | null
   created_at: string
   clients?: Client
 }

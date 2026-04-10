@@ -1,30 +1,11 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Application, Document, EmailLog } from '@/types/database'
-
-const C = {
-  bg: '#f5f4f0', surface: '#ffffff', surfaceAlt: '#faf9f6',
-  border: '#e5e2da', borderMid: '#d0cdc4',
-  ink: '#1a1814', inkMid: '#5a5650', inkFaint: '#9b9890',
-  accent: '#c45c1a', accentBg: '#fdf0e8', accentBorder: '#f0c8a4',
-  green: '#2d7a47', greenBg: '#edf7f1', greenBorder: '#a8d9b8',
-  blue: '#1a5fa8', blueBg: '#eaf2fc', blueBorder: '#a4c8f0',
-  red: '#b83232', redBg: '#fdf0f0', redBorder: '#f0b8b8',
-  yellow: '#7a5c00', yellowBg: '#fdf8e8', yellowBorder: '#e8d490',
-  purple: '#6a3fa0', purpleBg: '#f5f0fc', purpleBorder: '#c8a8e8',
-} as const
-
-const APP_STATUS_CFG: Record<string, { color: string; bg: string; border: string; icon: string }> = {
-  '適格審査中': { color: C.yellow, bg: C.yellowBg, border: C.yellowBorder, icon: '◐' },
-  '書類準備中': { color: C.blue,   bg: C.blueBg,   border: C.blueBorder,   icon: '◑' },
-  '申請中':     { color: C.accent, bg: C.accentBg, border: C.accentBorder, icon: '◕' },
-  '採択待ち':   { color: C.purple, bg: C.purpleBg, border: C.purpleBorder, icon: '◔' },
-  '採択済':     { color: C.green,  bg: C.greenBg,  border: C.greenBorder,  icon: '●' },
-  '不採択':     { color: C.red,    bg: C.redBg,    border: C.redBorder,    icon: '○' },
-}
+import { C, APP_STATUS_CFG, POST_GRANT_STEPS } from './lib/constants'
+import { getUrgencyLevel, filterBySearch, groupByStatus } from './lib/filters'
 
 const DOC_STATUS_CFG: Record<string, { color: string; bg: string; border: string; icon: string }> = {
   '未提出':   { color: C.inkFaint, bg: C.bg,       border: C.border,       icon: '○' },
@@ -82,6 +63,8 @@ export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }
   const [apps, setApps] = useState<AppRow[]>(initialApps)
   const [selId, setSelId] = useState<string>(initialSel && initialApps.some(a => a.id === initialSel) ? initialSel : initialApps[0]?.id ?? '')
   const [showRegisterModal, setShowRegisterModal] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<string | null>(null)
   const [subTab, setSubTab] = useState<'info' | 'docs' | 'ai' | 'chat' | 'draft'>('info')
   const [uploadDocId, setUploadDocId] = useState<string | null>(null)
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
@@ -303,35 +286,68 @@ export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }
       )}
 
 
-      <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 20, alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 20, alignItems: 'start' }}>
 
-        {/* 案件リスト */}
-        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-          <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.border}`, background: C.surfaceAlt }}>
-            <span style={{ fontSize: 11, color: C.inkFaint, fontWeight: 700, textTransform: 'uppercase' as const }}>申請案件</span>
+        {/* 案件リスト（ステータスグループ） */}
+        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', maxHeight: 'calc(100vh - 160px)', overflowY: 'auto' }}>
+          {/* 検索 */}
+          <div style={{ padding: '10px 14px', borderBottom: `1px solid ${C.border}`, background: C.surfaceAlt }}>
+            <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="顧客名で検索..." style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6, padding: '7px 10px', fontSize: 12, fontFamily: 'inherit', outline: 'none', color: C.ink }} />
           </div>
-          {apps.map(a => {
-            const req  = a.docs.filter(d => d.required).length
-            const done = a.docs.filter(d => d.status === '承認済').length
-            const p    = req > 0 ? Math.round(done / req * 100) : 0
-            const urg  = !a.daysLeft ? C.inkFaint : a.daysLeft < 14 ? C.red : a.daysLeft < 28 ? C.yellow : C.green
-            return (
-              <div key={a.id} onClick={() => setSelId(a.id)} style={{ padding: '14px 18px', borderBottom: `1px solid ${C.border}`, cursor: 'pointer', background: selId === a.id ? C.accentBg : 'transparent', borderLeft: selId === a.id ? `3px solid ${C.accent}` : '3px solid transparent', transition: 'all 0.15s' }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{a.clients.name}</div>
-                <div style={{ fontSize: 11, color: C.inkFaint, marginTop: 2 }}>{a.subsidy_type}</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
-                  <div style={{ flex: 1, height: 4, background: C.border, borderRadius: 2, overflow: 'hidden' }}>
-                    <div style={{ width: `${p}%`, height: '100%', background: p === 100 ? C.green : C.accent, borderRadius: 2 }} />
+          {/* ステータスフィルタ */}
+          <div style={{ padding: '8px 14px', borderBottom: `1px solid ${C.border}`, display: 'flex', gap: 4, flexWrap: 'wrap' as const }}>
+            <button onClick={() => setStatusFilter(null)} style={{ background: !statusFilter ? C.ink : C.bg, color: !statusFilter ? '#fff' : C.inkFaint, border: 'none', borderRadius: 12, padding: '3px 10px', fontSize: 10, cursor: 'pointer', fontFamily: 'inherit', fontWeight: !statusFilter ? 700 : 400 }}>全て</button>
+            {(['適格審査中', '書類準備中', '申請中', '採択待ち', '採択済'] as const).map(st => {
+              const cfg = APP_STATUS_CFG[st]
+              const count = apps.filter(a => a.status === st).length
+              if (count === 0) return null
+              return <button key={st} onClick={() => setStatusFilter(statusFilter === st ? null : st)} style={{ background: statusFilter === st ? cfg.bg : C.bg, color: statusFilter === st ? cfg.color : C.inkFaint, border: `1px solid ${statusFilter === st ? cfg.border : 'transparent'}`, borderRadius: 12, padding: '3px 8px', fontSize: 10, cursor: 'pointer', fontFamily: 'inherit', fontWeight: statusFilter === st ? 700 : 400 }}>{cfg.icon} {count}</button>
+            })}
+          </div>
+          {/* グループ化リスト */}
+          {(() => {
+            const filtered = filterBySearch(statusFilter ? apps.filter(a => a.status === statusFilter) : apps, searchQuery)
+            const groups = groupByStatus(filtered)
+            if (groups.length === 0) return <div style={{ padding: 20, textAlign: 'center', color: C.inkFaint, fontSize: 12 }}>該当する顧客がありません</div>
+            return groups.map(group => {
+              const cfg = APP_STATUS_CFG[group.status] ?? { color: C.inkFaint, bg: C.bg, border: C.border, icon: '○' }
+              return (
+                <div key={group.status}>
+                  <div style={{ padding: '8px 14px', background: cfg.bg, fontSize: 11, fontWeight: 700, color: cfg.color, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${C.border}` }}>
+                    <span>{cfg.icon} {group.status}</span>
+                    <span style={{ background: cfg.color, color: '#fff', fontSize: 10, padding: '1px 6px', borderRadius: 8 }}>{group.apps.length}</span>
                   </div>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: p === 100 ? C.green : C.accent, minWidth: 32 }}>{done}/{req}</span>
+                  {group.apps.map(a => {
+                    const req = a.docs.filter(d => d.required).length
+                    const done = a.docs.filter(d => d.status === '承認済').length
+                    const p = req > 0 ? Math.round(done / req * 100) : 0
+                    const urgency = getUrgencyLevel(a)
+                    const urgDot = urgency === 'critical' ? C.red : urgency === 'warning' ? C.yellow : urgency === 'attention' ? C.accent : ''
+                    return (
+                      <div key={a.id} onClick={() => setSelId(a.id)} style={{ padding: '10px 14px', borderBottom: `1px solid ${C.border}`, cursor: 'pointer', background: selId === a.id ? C.accentBg : 'transparent', borderLeft: selId === a.id ? `3px solid ${C.accent}` : '3px solid transparent', transition: 'all 0.12s' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            {urgDot && <span style={{ width: 7, height: 7, borderRadius: '50%', background: urgDot, flexShrink: 0 }} />}
+                            <span style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{a.clients.name}</span>
+                          </div>
+                          {a.daysLeft != null && <span style={{ fontSize: 10, color: a.daysLeft <= 14 ? C.red : C.inkFaint, fontWeight: 600 }}>残{a.daysLeft}日</span>}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                          <div style={{ flex: 1, height: 3, background: C.border, borderRadius: 2, overflow: 'hidden' }}>
+                            <div style={{ width: `${p}%`, height: '100%', background: p === 100 ? C.green : C.accent, borderRadius: 2 }} />
+                          </div>
+                          <span style={{ fontSize: 10, color: p === 100 ? C.green : C.inkFaint }}>{done}/{req}</span>
+                        </div>
+                        {a.status === '採択済' && a.post_grant_status && (
+                          <div style={{ fontSize: 10, color: C.green, marginTop: 3, fontWeight: 600 }}>📋 {a.post_grant_status}</div>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
-                  <AppBadge status={a.status} />
-                  {a.daysLeft && <span style={{ fontSize: 11, color: urg, fontWeight: 700 }}>残{a.daysLeft}日</span>}
-                </div>
-              </div>
-            )
-          })}
+              )
+            })
+          })()}
         </div>
 
         {/* 右パネル */}
@@ -376,6 +392,39 @@ export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }
               </div>
             </div>
           </div>
+
+          {/* 採択後フロートラッカー */}
+          {client.status === '採択済' && (
+            <div style={{ background: C.surface, border: `1px solid ${C.greenBorder}`, borderRadius: 12, padding: '16px 20px' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: C.green, marginBottom: 12 }}>採択後プロセス</div>
+              <div style={{ display: 'flex', gap: 0, alignItems: 'center', marginBottom: 10, overflowX: 'auto' }}>
+                {POST_GRANT_STEPS.map((step, i) => {
+                  const currentIdx = POST_GRANT_STEPS.indexOf(client.post_grant_status as any)
+                  const isDone = currentIdx >= 0 && i < currentIdx
+                  const isCurrent = client.post_grant_status === step
+                  return (
+                    <div key={step} style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                      <button onClick={async () => {
+                        await supabase.from('applications').update({ post_grant_status: step }).eq('id', client.id)
+                        setApps(prev => prev.map(a => a.id === client.id ? { ...a, post_grant_status: step } as AppRow : a))
+                        showToast(`${step} に更新しました`)
+                      }} style={{ width: 28, height: 28, borderRadius: '50%', border: 'none', background: isDone ? C.green : isCurrent ? C.accent : C.border, color: isDone || isCurrent ? '#fff' : C.inkFaint, fontSize: 10, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {isDone ? '✓' : i + 1}
+                      </button>
+                      {i < POST_GRANT_STEPS.length - 1 && <div style={{ width: 16, height: 2, background: isDone ? C.green : C.border }} />}
+                    </div>
+                  )
+                })}
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 4 }}>
+                {POST_GRANT_STEPS.map((step, i) => {
+                  const currentIdx = POST_GRANT_STEPS.indexOf(client.post_grant_status as any)
+                  const isCurrent = client.post_grant_status === step
+                  return <span key={step} style={{ fontSize: 9, color: isCurrent ? C.accent : (currentIdx >= 0 && i < currentIdx) ? C.green : C.inkFaint, fontWeight: isCurrent ? 700 : 400, whiteSpace: 'nowrap' as const }}>{step}</span>
+                })}
+              </div>
+            </div>
+          )}
 
           {/* ポータルURL */}
           <PortalUrlCard client={client} onTokenGenerated={(token, expires) => {
