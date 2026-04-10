@@ -60,8 +60,9 @@ function ChatPanel({ applicationId, csName }: { applicationId: string; csName: s
         body: JSON.stringify({ applicationId, content: input.trim(), senderType: 'cs', senderName: csName }),
       })
       if (res.ok) {
+        const msg = await res.json()
+        setMessages(prev => [...prev, msg])
         setInput('')
-        loadMessages()
       }
     } catch { /* ignore */ }
     finally { setSending(false) }

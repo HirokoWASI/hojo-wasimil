@@ -63,8 +63,9 @@ export function ChatTab({ applicationId, client, csName }: Props) {
         }),
       })
       if (res.ok) {
+        const msg = await res.json()
+        setMessages(prev => [...prev, msg])
         setInput('')
-        loadMessages()
       } else {
         alert('送信に失敗しました')
       }
