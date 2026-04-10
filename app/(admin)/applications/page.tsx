@@ -35,13 +35,5 @@ export default async function ApplicationsPage() {
     }
   })
 
-  if (apps.length === 0) {
-    return (
-      <div style={{ padding: 40, textAlign: 'center', color: '#9b9890', fontSize: 14 }}>
-        申請案件がありません
-      </div>
-    )
-  }
-
   return <ProcessClient initialApps={apps} />
 }

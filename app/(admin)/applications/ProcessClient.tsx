@@ -72,6 +72,7 @@ export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }
   const initialSel = searchParams.get('sel')
   const [apps, setApps] = useState<AppRow[]>(initialApps)
   const [selId, setSelId] = useState<string>(initialSel && initialApps.some(a => a.id === initialSel) ? initialSel : initialApps[0]?.id ?? '')
+  const [showRegisterModal, setShowRegisterModal] = useState(false)
   const [uploadDocId, setUploadDocId] = useState<string | null>(null)
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -89,7 +90,20 @@ export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }
   const supabase = createClient()
 
   const client = apps.find(a => a.id === selId) ?? apps[0]
-  if (!client) return <div style={{ padding: 40, color: C.inkFaint, textAlign: 'center' }}>案件がありません</div>
+  if (!client) return (
+    <div style={{ maxWidth: 1200 }}>
+      <div style={{ marginBottom: 24 }}>
+        <h2 style={{ margin: '0 0 4px', fontSize: 20, fontWeight: 800 }}>顧客プロセス管理</h2>
+        <p style={{ margin: 0, color: C.inkFaint, fontSize: 13 }}>書類提出・審査・アラート送信を一元管理します</p>
+      </div>
+      <div style={{ textAlign: 'center', padding: 48, background: C.surface, borderRadius: 14, border: `1px dashed ${C.borderMid}` }}>
+        <div style={{ fontSize: 32, marginBottom: 12 }}>📋</div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: C.inkMid, marginBottom: 8 }}>申請案件がありません</div>
+        <button onClick={() => setShowRegisterModal(true)} style={{ background: C.accent, color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>＋ 新規顧客を登録</button>
+      </div>
+      {showRegisterModal && <RegisterModal onClose={() => setShowRegisterModal(false)} onRegistered={() => { setShowRegisterModal(false); window.location.reload() }} />}
+    </div>
+  )
 
   const requiredDocs = client.docs.filter(d => d.required)
   const approvedDocs = client.docs.filter(d => d.status === '承認済')
@@ -219,8 +233,9 @@ export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }
 
         {/* 案件リスト */}
         <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-          <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.border}`, background: C.surfaceAlt, fontSize: 11, color: C.inkFaint, fontWeight: 700, textTransform: 'uppercase' as const }}>
-            申請案件
+          <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.border}`, background: C.surfaceAlt, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 11, color: C.inkFaint, fontWeight: 700, textTransform: 'uppercase' as const }}>申請案件</span>
+            <button onClick={() => setShowRegisterModal(true)} style={{ background: C.accent, color: '#fff', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>＋ 新規</button>
           </div>
           {apps.map(a => {
             const req  = a.docs.filter(d => d.required).length
@@ -432,6 +447,14 @@ export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }
         </div>
       )}
 
+      {/* 新規顧客登録モーダル */}
+      {showRegisterModal && (
+        <RegisterModal
+          onClose={() => setShowRegisterModal(false)}
+          onRegistered={() => { setShowRegisterModal(false); window.location.reload() }}
+        />
+      )}
+
       {/* 差し戻しモーダル */}
       {showReturnModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={e => { if (e.target === e.currentTarget) setShowReturnModal(null) }}>
@@ -526,6 +549,136 @@ function PortalUrlCard({ client, onTokenGenerated }: { client: AppRow; onTokenGe
           有効期限: {new Date(expiresAt).toLocaleDateString('ja-JP')} — このURLをお客様にメール等でご案内ください
         </div>
       )}
+    </div>
+  )
+}
+
+// ---- 新規顧客登録モーダル ----
+const SUBSIDY_TYPES = ['デジタル化・AI導入補助金', 'ものづくり補助金', '小規模事業者持続化補助金', '事業再構築補助金', '省エネ補助金', 'その他'] as const
+
+interface SalesDeal {
+  id: string; facility_name: string; stage: string
+  expected_mrr: number | null; room_count: number | null
+  company_name: string; already_synced: boolean
+}
+
+function RegisterModal({ onClose, onRegistered }: { onClose: () => void; onRegistered: () => void }) {
+  const [mode, setMode] = useState<'manual' | 'sales'>('sales')
+  const [saving, setSaving] = useState(false)
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [contactName, setContactName] = useState('')
+  const [phone, setPhone] = useState('')
+  const [roomCount, setRoomCount] = useState('')
+  const [subsidyType, setSubsidyType] = useState<string>('デジタル化・AI導入補助金')
+  const [deals, setDeals] = useState<SalesDeal[]>([])
+  const [dealsLoading, setDealsLoading] = useState(false)
+  const [dealsError, setDealsError] = useState<string | null>(null)
+  const [syncingId, setSyncingId] = useState<string | null>(null)
+
+  const inp: React.CSSProperties = { background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: '9px 14px', color: C.ink, fontSize: 13, fontFamily: 'inherit', outline: 'none', width: '100%' }
+
+  useState(() => { if (mode === 'sales') loadDeals() })
+
+  async function loadDeals() {
+    setDealsLoading(true); setDealsError(null)
+    try {
+      const res = await fetch('/api/subsidy-clients?mode=sales-deals')
+      if (!res.ok) { setDealsError((await res.json()).error ?? 'エラー'); return }
+      setDeals(await res.json())
+    } catch { setDealsError('通信エラー') }
+    finally { setDealsLoading(false) }
+  }
+
+  async function handleManual() {
+    if (!name.trim() || saving) return
+    setSaving(true)
+    try {
+      const res = await fetch('/api/subsidy-clients', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, contactName, roomCount: roomCount ? parseInt(roomCount) : null, phone, subsidyType }),
+      })
+      if (res.ok) onRegistered()
+    } finally { setSaving(false) }
+  }
+
+  async function handleSync(dealId: string) {
+    setSyncingId(dealId)
+    try {
+      const res = await fetch('/api/subsidy-clients', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'sync-from-sales', dealId }),
+      })
+      if (res.ok) onRegistered()
+      else alert((await res.json()).error ?? 'エラー')
+    } finally { setSyncingId(null) }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{ background: C.surface, borderRadius: 16, width: '100%', maxWidth: 600, maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}>
+        <div style={{ padding: '20px 24px', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>新規顧客登録</h3>
+          <button onClick={onClose} style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, width: 32, height: 32, cursor: 'pointer', fontSize: 16, color: C.inkFaint }}>✕</button>
+        </div>
+        <div style={{ padding: 24 }}>
+          {/* モード切替 */}
+          <div style={{ display: 'flex', gap: 2, marginBottom: 20, background: C.bg, borderRadius: 10, padding: 4, border: `1px solid ${C.border}` }}>
+            {([['sales', '🔄 Sales Pipelineから同期'], ['manual', '✏️ 手動登録']] as const).map(([id, label]) => (
+              <button key={id} onClick={() => { setMode(id as 'sales' | 'manual'); if (id === 'sales' && deals.length === 0) loadDeals() }} style={{ flex: 1, background: mode === id ? C.surface : 'transparent', color: mode === id ? C.ink : C.inkFaint, border: mode === id ? `1px solid ${C.border}` : '1px solid transparent', borderRadius: 8, padding: '8px 12px', fontSize: 13, fontWeight: mode === id ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit' }}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Sales同期 */}
+          {mode === 'sales' && (
+            <div>
+              {dealsLoading && <div style={{ textAlign: 'center', padding: 24, color: C.inkFaint, fontSize: 13 }}>Sales Pipelineを読み込み中...</div>}
+              {dealsError && <div style={{ background: C.yellowBg, border: `1px solid ${C.yellowBorder}`, borderRadius: 10, padding: '12px 16px', fontSize: 12, color: C.yellow, marginBottom: 12 }}>⚠️ {dealsError}<div style={{ fontSize: 11, marginTop: 4, color: C.inkFaint }}>Vercel環境変数に SALES_SUPABASE_URL と SALES_SUPABASE_SERVICE_KEY を設定してください</div></div>}
+              {!dealsLoading && !dealsError && deals.length === 0 && <div style={{ textAlign: 'center', padding: 24, color: C.inkFaint, fontSize: 13 }}>同期可能な案件がありません</div>}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {deals.map(d => (
+                  <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', background: d.already_synced ? C.greenBg : C.bg, borderRadius: 10, border: `1px solid ${d.already_synced ? C.greenBorder : C.border}` }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>{d.facility_name || d.company_name || '—'}</div>
+                      <div style={{ fontSize: 11, color: C.inkFaint }}>{d.company_name}{d.room_count ? ` / ${d.room_count}室` : ''}</div>
+                    </div>
+                    {d.already_synced ? (
+                      <span style={{ fontSize: 11, color: C.green, fontWeight: 700 }}>✓ 同期済</span>
+                    ) : (
+                      <button onClick={() => handleSync(d.id)} disabled={syncingId === d.id} style={{ background: C.accent, color: '#fff', border: 'none', borderRadius: 8, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: syncingId === d.id ? 0.6 : 1 }}>
+                        {syncingId === d.id ? '同期中...' : '→ 同期'}
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 手動登録 */}
+          {mode === 'manual' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div><label style={{ fontSize: 11, color: C.inkFaint, fontWeight: 600, display: 'block', marginBottom: 4 }}>施設名・会社名 *</label><input value={name} onChange={e => setName(e.target.value)} placeholder="例: 箱根温泉 紫雲荘" style={inp} /></div>
+                <div><label style={{ fontSize: 11, color: C.inkFaint, fontWeight: 600, display: 'block', marginBottom: 4 }}>担当者名</label><input value={contactName} onChange={e => setContactName(e.target.value)} placeholder="例: 山田太郎" style={inp} /></div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div><label style={{ fontSize: 11, color: C.inkFaint, fontWeight: 600, display: 'block', marginBottom: 4 }}>メールアドレス</label><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="例: info@example.com" style={inp} /></div>
+                <div><label style={{ fontSize: 11, color: C.inkFaint, fontWeight: 600, display: 'block', marginBottom: 4 }}>電話番号</label><input value={phone} onChange={e => setPhone(e.target.value)} placeholder="例: 03-1234-5678" style={inp} /></div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div><label style={{ fontSize: 11, color: C.inkFaint, fontWeight: 600, display: 'block', marginBottom: 4 }}>客室数</label><input type="number" value={roomCount} onChange={e => setRoomCount(e.target.value)} placeholder="例: 25" style={inp} /></div>
+                <div><label style={{ fontSize: 11, color: C.inkFaint, fontWeight: 600, display: 'block', marginBottom: 4 }}>申請する補助金 *</label><select value={subsidyType} onChange={e => setSubsidyType(e.target.value)} style={{ ...inp, cursor: 'pointer' }}>{SUBSIDY_TYPES.map(t => <option key={t}>{t}</option>)}</select></div>
+              </div>
+              <button onClick={handleManual} disabled={!name.trim() || saving} style={{ marginTop: 8, background: name.trim() && !saving ? C.accent : C.border, color: name.trim() && !saving ? '#fff' : C.inkFaint, border: 'none', borderRadius: 10, padding: '12px 24px', fontSize: 14, fontWeight: 700, cursor: name.trim() && !saving ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
+                {saving ? '登録中...' : '登録して申請管理を開始'}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
