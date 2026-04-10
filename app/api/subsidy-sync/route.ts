@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import FirecrawlApp from '@mendable/firecrawl-js'
 import Anthropic from '@anthropic-ai/sdk'
-import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/server'
 
 const EXTRACT_PROMPT = `あなたは日本の補助金・助成金の専門家です。
 提供されたウェブページのテキストから補助金情報を抽出し、必ず以下のJSON形式のみで回答してください。
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
 
   const firecrawl = new FirecrawlApp({ apiKey: process.env.FIRECRAWL_API_KEY })
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-  const supabase = createClient()
+  const supabase = createServiceClient()
 
   const query = supabase.from('subsidy_sources').select('*').eq('active', true)
   if (sourceId) query.eq('id', sourceId)

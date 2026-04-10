@@ -41,7 +41,7 @@ interface SyncResult { sourceId: string; sourceName: string; status: string; nam
 const EXAMPLE_URLS = [
   'https://www.chusho.meti.go.jp/keiei/itesupport/',
   'https://www.meti.go.jp/policy/jigyou_saisei/kyousouryoku_kyouka/monodzukuri_hojyokin/',
-  'https://jizokuka-r3.jp/',
+  'https://www.shokokai.or.jp/jizokuka/',
 ]
 
 // ---- サブコンポーネント ----
