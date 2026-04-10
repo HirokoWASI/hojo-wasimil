@@ -47,6 +47,15 @@ export interface Application {
   cs_email: string | null
   slack_channel: string | null
   ai_result: AiResult | null
+  notes: string | null
+  program_id: string | null
+  round_id: string | null
+  tool_name: string | null
+  quote_amount: number | null
+  subsidy_amount: number | null
+  gbiz_id_status: string | null
+  security_action_done: boolean
+  miradeji_done: boolean
   created_at: string
   clients?: Client
 }

@@ -6,7 +6,7 @@ export default async function ApplicationsPage() {
 
   const { data: applications } = await supabase
     .from('applications')
-    .select('*, clients(id, name, email, contact_name, portal_token, token_expires_at)')
+    .select('*, clients(id, name, email, contact_name, portal_token, token_expires_at, phone, facility_name, room_count, employee_count, capital_amount, industry, corporate_number, gbiz_id, representative_name, address)')
     .order('created_at', { ascending: false })
 
   const appIds = (applications ?? []).map(a => a.id)
@@ -28,7 +28,7 @@ export default async function ApplicationsPage() {
       : null
     return {
       ...app,
-      clients: app.clients ?? { name: '—', email: '', contact_name: null, portal_token: null, token_expires_at: null },
+      clients: app.clients ?? { name: '—', email: '', contact_name: null, portal_token: null, token_expires_at: null, phone: null, facility_name: null, room_count: null, employee_count: null, capital_amount: null, industry: null, corporate_number: null, gbiz_id: null, representative_name: null, address: null },
       docs: (documents ?? []).filter(d => d.application_id === app.id),
       alerts: (emailLogs ?? []).filter(e => e.application_id === app.id),
       daysLeft: daysLeft !== null && daysLeft >= 0 ? daysLeft : null,

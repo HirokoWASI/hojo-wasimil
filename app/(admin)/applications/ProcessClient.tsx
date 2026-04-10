@@ -34,8 +34,17 @@ const DOC_STATUS_CFG: Record<string, { color: string; bg: string; border: string
   '差し戻し': { color: C.red,      bg: C.redBg,    border: C.redBorder,    icon: '✕' },
 }
 
+export type ClientInfo = {
+  id?: string; name: string; email: string; contact_name: string | null
+  portal_token: string | null; token_expires_at: string | null
+  phone: string | null; facility_name: string | null; room_count: number | null
+  employee_count: number | null; capital_amount: string | null
+  industry: string | null; corporate_number: string | null; gbiz_id: string | null
+  representative_name: string | null; address: string | null
+}
+
 export type AppRow = Application & {
-  clients: { name: string; email: string; contact_name: string | null; portal_token: string | null; token_expires_at: string | null }
+  clients: ClientInfo
   docs: Document[]
   alerts: EmailLog[]
   daysLeft: number | null
@@ -73,7 +82,7 @@ export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }
   const [apps, setApps] = useState<AppRow[]>(initialApps)
   const [selId, setSelId] = useState<string>(initialSel && initialApps.some(a => a.id === initialSel) ? initialSel : initialApps[0]?.id ?? '')
   const [showRegisterModal, setShowRegisterModal] = useState(false)
-  const [subTab, setSubTab] = useState<'docs' | 'ai' | 'chat' | 'draft'>('docs')
+  const [subTab, setSubTab] = useState<'info' | 'docs' | 'ai' | 'chat' | 'draft'>('info')
   const [uploadDocId, setUploadDocId] = useState<string | null>(null)
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -359,12 +368,25 @@ export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }
 
           {/* サブタブ */}
           <div style={{ display: 'flex', gap: 2, background: C.bg, borderRadius: 10, padding: 4, border: `1px solid ${C.border}` }}>
-            {([['docs', '📋 書類管理'], ['ai', '⚡ AI審査'], ['chat', '💬 チャット'], ['draft', '✦ ドラフト生成']] as const).map(([id, label]) => (
+            {([['info', '🏨 顧客情報'], ['docs', '📋 書類管理'], ['ai', '⚡ AI審査'], ['chat', '💬 チャット'], ['draft', '✦ ドラフト']] as const).map(([id, label]) => (
               <button key={id} onClick={() => { setSubTab(id); if (id === 'chat') loadChat() }} style={{ flex: 1, background: subTab === id ? C.surface : 'transparent', color: subTab === id ? C.ink : C.inkMid, border: subTab === id ? `1px solid ${C.border}` : '1px solid transparent', borderRadius: 8, padding: '7px 12px', fontSize: 12, fontWeight: subTab === id ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit' }}>
                 {label}
               </button>
             ))}
           </div>
+
+          {/* ── 書類管理タブ ── */}
+          {/* ── 顧客情報タブ ── */}
+          {subTab === 'info' && (
+            <ClientInfoTab client={client} onSaved={(updatedClients, updatedApp) => {
+              setApps(prev => prev.map(a => a.id === client.id ? {
+                ...a,
+                ...(updatedApp ?? {}),
+                clients: { ...a.clients, ...(updatedClients ?? {}) },
+              } : a))
+              showToast('保存しました')
+            }} />
+          )}
 
           {/* ── 書類管理タブ ── */}
           {subTab === 'docs' && <>
@@ -713,6 +735,115 @@ interface SalesDeal {
   id: string; facility_name: string; stage: string
   expected_mrr: number | null; room_count: number | null
   company_name: string; already_synced: boolean
+}
+
+// ---- 顧客情報編集タブ ----
+function ClientInfoTab({ client, onSaved }: { client: AppRow; onSaved: (c?: Partial<ClientInfo>, a?: Partial<Application>) => void }) {
+  const [saving, setSaving] = useState(false)
+  const [f, setF] = useState({
+    name: client.clients.name ?? '',
+    contact_name: client.clients.contact_name ?? '',
+    email: client.clients.email ?? '',
+    phone: client.clients.phone ?? '',
+    facility_name: client.clients.facility_name ?? '',
+    representative_name: client.clients.representative_name ?? '',
+    address: client.clients.address ?? '',
+    industry: client.clients.industry ?? '宿泊業',
+    employee_count: client.clients.employee_count?.toString() ?? '',
+    capital_amount: client.clients.capital_amount ?? '',
+    room_count: client.clients.room_count?.toString() ?? '',
+    corporate_number: client.clients.corporate_number ?? '',
+    gbiz_id: client.clients.gbiz_id ?? '',
+    // app fields
+    cs_name: client.cs_name ?? '',
+    cs_email: client.cs_email ?? '',
+    amount: client.amount ?? '',
+    subsidy_frame: client.subsidy_frame ?? '',
+    notes: client.notes ?? '',
+  })
+
+  function set(key: string, val: string) { setF(prev => ({ ...prev, [key]: val })) }
+
+  async function handleSave() {
+    setSaving(true)
+    try {
+      await fetch('/api/client-update', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientId: client.client_id,
+          applicationId: client.id,
+          clientFields: {
+            name: f.name, contact_name: f.contact_name || null, email: f.email,
+            phone: f.phone || null, facility_name: f.facility_name || null,
+            representative_name: f.representative_name || null, address: f.address || null,
+            industry: f.industry || null,
+            employee_count: f.employee_count ? parseInt(f.employee_count) : null,
+            capital_amount: f.capital_amount || null,
+            room_count: f.room_count ? parseInt(f.room_count) : null,
+            corporate_number: f.corporate_number || null, gbiz_id: f.gbiz_id || null,
+          },
+          appFields: {
+            cs_name: f.cs_name || null, cs_email: f.cs_email || null,
+            amount: f.amount || null, subsidy_frame: f.subsidy_frame || null,
+            notes: f.notes || null,
+          },
+        }),
+      })
+      onSaved(
+        { name: f.name, contact_name: f.contact_name || null, email: f.email, phone: f.phone || null, facility_name: f.facility_name || null, employee_count: f.employee_count ? parseInt(f.employee_count) : null, capital_amount: f.capital_amount || null, room_count: f.room_count ? parseInt(f.room_count) : null, industry: f.industry || null, corporate_number: f.corporate_number || null, gbiz_id: f.gbiz_id || null, representative_name: f.representative_name || null, address: f.address || null, portal_token: client.clients.portal_token, token_expires_at: client.clients.token_expires_at },
+        { cs_name: f.cs_name || null, cs_email: f.cs_email || null, amount: f.amount || null, subsidy_frame: f.subsidy_frame || null, notes: f.notes || null } as Partial<Application>,
+      )
+    } finally { setSaving(false) }
+  }
+
+  const inp = { background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 12px', color: C.ink, fontSize: 13, width: '100%', outline: 'none', fontFamily: 'inherit' } as const
+  const lbl = { fontSize: 11, color: C.inkFaint, fontWeight: 600 as const, display: 'block' as const, marginBottom: 4 }
+
+  return (
+    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>顧客情報</h3>
+        <button onClick={handleSave} disabled={saving} style={{ background: saving ? C.border : C.accent, color: saving ? C.inkFaint : '#fff', border: 'none', borderRadius: 8, padding: '8px 18px', fontSize: 12, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+          {saving ? '保存中...' : '保存'}
+        </button>
+      </div>
+
+      <div style={{ fontSize: 12, fontWeight: 700, color: C.ink, marginBottom: 8, borderBottom: `1px solid ${C.border}`, paddingBottom: 6 }}>基本情報</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+        <div><label style={lbl}>施設名・会社名 *</label><input value={f.name} onChange={e => set('name', e.target.value)} style={inp} /></div>
+        <div><label style={lbl}>施設名（別名）</label><input value={f.facility_name} onChange={e => set('facility_name', e.target.value)} style={inp} /></div>
+        <div><label style={lbl}>代表者名</label><input value={f.representative_name} onChange={e => set('representative_name', e.target.value)} placeholder="例: 田中太郎" style={inp} /></div>
+        <div><label style={lbl}>担当者名</label><input value={f.contact_name} onChange={e => set('contact_name', e.target.value)} style={inp} /></div>
+        <div><label style={lbl}>メールアドレス</label><input value={f.email} onChange={e => set('email', e.target.value)} style={inp} /></div>
+        <div><label style={lbl}>電話番号</label><input value={f.phone} onChange={e => set('phone', e.target.value)} style={inp} /></div>
+        <div style={{ gridColumn: '1 / -1' }}><label style={lbl}>住所</label><input value={f.address} onChange={e => set('address', e.target.value)} placeholder="例: 神奈川県足柄下郡箱根町..." style={inp} /></div>
+      </div>
+
+      <div style={{ fontSize: 12, fontWeight: 700, color: C.ink, marginBottom: 8, borderBottom: `1px solid ${C.border}`, paddingBottom: 6 }}>事業情報（AI審査に使用）</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
+        <div><label style={lbl}>業種</label>
+          <select value={f.industry} onChange={e => set('industry', e.target.value)} style={{ ...inp, cursor: 'pointer' }}>
+            {['宿泊業', 'サービス業', '小売業', '卸売業', '製造業', 'その他'].map(t => <option key={t}>{t}</option>)}
+          </select>
+        </div>
+        <div><label style={lbl}>従業員数</label><input type="number" value={f.employee_count} onChange={e => set('employee_count', e.target.value)} placeholder="例: 45" style={inp} /></div>
+        <div><label style={lbl}>客室数</label><input type="number" value={f.room_count} onChange={e => set('room_count', e.target.value)} placeholder="例: 25" style={inp} /></div>
+        <div><label style={lbl}>資本金</label><input value={f.capital_amount} onChange={e => set('capital_amount', e.target.value)} placeholder="例: 1000万円" style={inp} /></div>
+        <div><label style={lbl}>法人番号</label><input value={f.corporate_number} onChange={e => set('corporate_number', e.target.value)} placeholder="13桁" style={inp} /></div>
+        <div><label style={lbl}>gBizID</label><input value={f.gbiz_id} onChange={e => set('gbiz_id', e.target.value)} placeholder="取得済みの場合入力" style={inp} /></div>
+      </div>
+
+      <div style={{ fontSize: 12, fontWeight: 700, color: C.ink, marginBottom: 8, borderBottom: `1px solid ${C.border}`, paddingBottom: 6 }}>申請情報</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+        <div><label style={lbl}>CS担当者名</label><input value={f.cs_name} onChange={e => set('cs_name', e.target.value)} style={inp} /></div>
+        <div><label style={lbl}>CS担当メール</label><input value={f.cs_email} onChange={e => set('cs_email', e.target.value)} style={inp} /></div>
+        <div><label style={lbl}>申請枠</label><input value={f.subsidy_frame} onChange={e => set('subsidy_frame', e.target.value)} placeholder="例: 通常枠A類型" style={inp} /></div>
+        <div><label style={lbl}>申請額</label><input value={f.amount} onChange={e => set('amount', e.target.value)} placeholder="例: 150万円" style={inp} /></div>
+      </div>
+      <div><label style={lbl}>メモ</label><textarea value={f.notes} onChange={e => set('notes', e.target.value)} placeholder="社内メモ" style={{ ...inp, minHeight: 60, resize: 'vertical' as const }} /></div>
+    </div>
+  )
 }
 
 function RegisterModal({ onClose, onRegistered }: { onClose: () => void; onRegistered: () => void }) {
