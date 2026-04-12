@@ -141,7 +141,7 @@ export async function POST(req: NextRequest) {
   }
 
   // 手動登録
-  const { name, email, contactName, facilityName, roomCount, phone, subsidyType, programId, roundId } = body
+  const { name, email, contactName, facilityName, roomCount, phone, subsidyType, programId, roundId, assignedTo } = body
 
   if (!name) return NextResponse.json({ error: 'name required' }, { status: 400 })
 
@@ -170,6 +170,7 @@ export async function POST(req: NextRequest) {
       tool_name: 'WASIMIL',
       program_id: programId ?? null,
       round_id: roundId ?? null,
+      assigned_to: assignedTo ?? null,
     })
     .select()
     .single()

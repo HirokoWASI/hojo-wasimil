@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useMemo } from 'react'
+import { useState, useRef, useMemo, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Application, Document, EmailLog } from '@/types/database'
@@ -63,6 +63,7 @@ export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }
   const [apps, setApps] = useState<AppRow[]>(initialApps)
   const [selId, setSelId] = useState<string>(initialSel && initialApps.some(a => a.id === initialSel) ? initialSel : initialApps[0]?.id ?? '')
   const [showRegisterModal, setShowRegisterModal] = useState(false)
+  const [csUsers, setCsUsers] = useState<{ id: string; name: string | null; email: string }[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
   const [subTab, setSubTab] = useState<'info' | 'docs' | 'ai' | 'chat' | 'draft'>('info')
@@ -94,6 +95,8 @@ export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }
   const fileRef = useRef<HTMLInputElement>(null)
   const supabase = createClient()
 
+  useEffect(() => { fetch('/api/users').then(r => r.json()).then(d => setCsUsers(d.filter((u: any) => u.is_active))) }, [])
+
   const client = apps.find(a => a.id === selId) ?? apps[0]
   if (!client) return (
     <div style={{ maxWidth: 1200 }}>
@@ -106,7 +109,7 @@ export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }
         <div style={{ fontSize: 14, fontWeight: 700, color: C.inkMid, marginBottom: 8 }}>申請案件がありません</div>
         <button onClick={() => setShowRegisterModal(true)} style={{ background: C.accent, color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>＋ 新規顧客を登録</button>
       </div>
-      {showRegisterModal && <RegisterModal onClose={() => setShowRegisterModal(false)} onRegistered={() => { setShowRegisterModal(false); window.location.reload() }} />}
+      {showRegisterModal && <RegisterModal onClose={() => setShowRegisterModal(false)} onRegistered={() => { setShowRegisterModal(false); window.location.reload() }} csUsers={csUsers} />}
     </div>
   )
 
@@ -338,8 +341,9 @@ export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }
                           </div>
                           <span style={{ fontSize: 10, color: p === 100 ? C.green : C.inkFaint }}>{done}/{req}</span>
                         </div>
+                        {a.cs_name && <div style={{ fontSize: 10, color: C.inkFaint, marginTop: 3 }}>担当: {a.cs_name}</div>}
                         {a.status === '採択済' && a.post_grant_status && (
-                          <div style={{ fontSize: 10, color: C.green, marginTop: 3, fontWeight: 600 }}>📋 {a.post_grant_status}</div>
+                          <div style={{ fontSize: 10, color: C.green, marginTop: 2, fontWeight: 600 }}>📋 {a.post_grant_status}</div>
                         )}
                       </div>
                     )
@@ -478,7 +482,7 @@ export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }
           {/* ── 書類管理タブ ── */}
           {/* ── 顧客情報タブ ── */}
           {subTab === 'info' && (
-            <ClientInfoTab client={client} onSaved={(updatedClients, updatedApp) => {
+            <ClientInfoTab client={client} csUsers={csUsers} onSaved={(updatedClients, updatedApp) => {
               setApps(prev => prev.map(a => a.id === client.id ? {
                 ...a,
                 ...(updatedApp ?? {}),
@@ -727,6 +731,7 @@ export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }
         <RegisterModal
           onClose={() => setShowRegisterModal(false)}
           onRegistered={() => { setShowRegisterModal(false); window.location.reload() }}
+          csUsers={csUsers}
         />
       )}
 
@@ -838,7 +843,7 @@ interface SalesDeal {
 }
 
 // ---- 顧客情報編集タブ ----
-function ClientInfoTab({ client, onSaved }: { client: AppRow; onSaved: (c?: Partial<ClientInfo>, a?: Partial<Application>) => void }) {
+function ClientInfoTab({ client, onSaved, csUsers }: { client: AppRow; onSaved: (c?: Partial<ClientInfo>, a?: Partial<Application>) => void; csUsers: { id: string; name: string | null; email: string }[] }) {
   const [saving, setSaving] = useState(false)
   const [f, setF] = useState({
     name: client.clients.name ?? '',
@@ -861,8 +866,7 @@ function ClientInfoTab({ client, onSaved }: { client: AppRow; onSaved: (c?: Part
     gbiz_id_status: client.gbiz_id_status ?? '未取得',
     security_action_done: client.security_action_done ?? false,
     miradeji_done: client.miradeji_done ?? false,
-    cs_name: client.cs_name ?? '',
-    cs_email: client.cs_email ?? '',
+    assigned_to: client.assigned_to ?? '',
     amount: client.amount ?? '',
     subsidy_frame: client.subsidy_frame ?? '',
     notes: client.notes ?? '',
@@ -893,19 +897,25 @@ function ClientInfoTab({ client, onSaved }: { client: AppRow; onSaved: (c?: Part
             subsidy_history: f.subsidy_history || 'なし',
             wage_raise_plan: f.wage_raise_plan || '未定',
           },
-          appFields: {
-            cs_name: f.cs_name || null, cs_email: f.cs_email || null,
-            amount: f.amount || null, subsidy_frame: f.subsidy_frame || null,
-            notes: f.notes || null,
-            gbiz_id_status: f.gbiz_id_status,
-            security_action_done: f.security_action_done,
-            miradeji_done: f.miradeji_done,
-          },
+          appFields: (() => {
+            const assignedUser = csUsers.find(u => u.id === f.assigned_to)
+            return {
+              assigned_to: f.assigned_to || null,
+              cs_name: assignedUser?.name ?? assignedUser?.email?.split('@')[0] ?? null,
+              cs_email: assignedUser?.email ?? null,
+              amount: f.amount || null, subsidy_frame: f.subsidy_frame || null,
+              notes: f.notes || null,
+              gbiz_id_status: f.gbiz_id_status,
+              security_action_done: f.security_action_done,
+              miradeji_done: f.miradeji_done,
+            }
+          })(),
         }),
       })
+      const assignedUser = csUsers.find(u => u.id === f.assigned_to)
       onSaved(
         { name: f.name, contact_name: f.contact_name || null, email: f.email, phone: f.phone || null, facility_name: f.facility_name || null, employee_count: f.employee_count ? parseInt(f.employee_count) : null, capital_amount: f.capital_amount || null, room_count: f.room_count ? parseInt(f.room_count) : null, industry: f.industry || null, corporate_number: f.corporate_number || null, gbiz_id: null, representative_name: f.representative_name || null, address: f.address || null, portal_token: client.clients.portal_token, token_expires_at: client.clients.token_expires_at },
-        { cs_name: f.cs_name || null, cs_email: f.cs_email || null, amount: f.amount || null, subsidy_frame: f.subsidy_frame || null, notes: f.notes || null, gbiz_id_status: f.gbiz_id_status, security_action_done: f.security_action_done, miradeji_done: f.miradeji_done } as Partial<Application>,
+        { assigned_to: f.assigned_to || null, cs_name: assignedUser?.name ?? null, cs_email: assignedUser?.email ?? null, amount: f.amount || null, subsidy_frame: f.subsidy_frame || null, notes: f.notes || null, gbiz_id_status: f.gbiz_id_status, security_action_done: f.security_action_done, miradeji_done: f.miradeji_done } as Partial<Application>,
       )
     } finally { setSaving(false) }
   }
@@ -984,8 +994,12 @@ function ClientInfoTab({ client, onSaved }: { client: AppRow; onSaved: (c?: Part
 
       <div style={{ fontSize: 12, fontWeight: 700, color: C.ink, marginBottom: 8, borderBottom: `1px solid ${C.border}`, paddingBottom: 6 }}>申請情報</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-        <div><label style={lbl}>CS担当者名</label><input value={f.cs_name} onChange={e => set('cs_name', e.target.value)} style={inp} /></div>
-        <div><label style={lbl}>CS担当メール</label><input value={f.cs_email} onChange={e => set('cs_email', e.target.value)} style={inp} /></div>
+        <div><label style={lbl}>CS担当者</label>
+          <select value={f.assigned_to} onChange={e => set('assigned_to', e.target.value)} style={{ ...inp, cursor: 'pointer' }}>
+            <option value="">未割当</option>
+            {csUsers.map(u => <option key={u.id} value={u.id}>{u.name ?? u.email.split('@')[0]}（{u.email}）</option>)}
+          </select>
+        </div>
         <div><label style={lbl}>申請枠</label><input value={f.subsidy_frame} onChange={e => set('subsidy_frame', e.target.value)} placeholder="例: 通常枠A類型" style={inp} /></div>
         <div><label style={lbl}>申請額</label><input value={f.amount} onChange={e => set('amount', e.target.value)} placeholder="例: 150万円" style={inp} /></div>
       </div>
@@ -994,7 +1008,7 @@ function ClientInfoTab({ client, onSaved }: { client: AppRow; onSaved: (c?: Part
   )
 }
 
-function RegisterModal({ onClose, onRegistered }: { onClose: () => void; onRegistered: () => void }) {
+function RegisterModal({ onClose, onRegistered, csUsers }: { onClose: () => void; onRegistered: () => void; csUsers: { id: string; name: string | null; email: string }[] }) {
   const [mode, setMode] = useState<'manual' | 'sales'>('sales')
   const [saving, setSaving] = useState(false)
   const [name, setName] = useState('')
@@ -1003,6 +1017,7 @@ function RegisterModal({ onClose, onRegistered }: { onClose: () => void; onRegis
   const [phone, setPhone] = useState('')
   const [roomCount, setRoomCount] = useState('')
   const [subsidyType, setSubsidyType] = useState<string>('デジタル化・AI導入補助金')
+  const [assignedTo, setAssignedTo] = useState('')
   const [deals, setDeals] = useState<SalesDeal[]>([])
   const [dealsLoading, setDealsLoading] = useState(false)
   const [dealsError, setDealsError] = useState<string | null>(null)
@@ -1028,7 +1043,7 @@ function RegisterModal({ onClose, onRegistered }: { onClose: () => void; onRegis
     try {
       const res = await fetch('/api/subsidy-clients', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, contactName, roomCount: roomCount ? parseInt(roomCount) : null, phone, subsidyType }),
+        body: JSON.stringify({ name, email, contactName, roomCount: roomCount ? parseInt(roomCount) : null, phone, subsidyType, assignedTo: assignedTo || null }),
       })
       if (res.ok) onRegistered()
     } finally { setSaving(false) }
@@ -1103,6 +1118,9 @@ function RegisterModal({ onClose, onRegistered }: { onClose: () => void; onRegis
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <div><label style={{ fontSize: 11, color: C.inkFaint, fontWeight: 600, display: 'block', marginBottom: 4 }}>客室数</label><input type="number" value={roomCount} onChange={e => setRoomCount(e.target.value)} placeholder="例: 25" style={inp} /></div>
                 <div><label style={{ fontSize: 11, color: C.inkFaint, fontWeight: 600, display: 'block', marginBottom: 4 }}>申請する補助金 *</label><select value={subsidyType} onChange={e => setSubsidyType(e.target.value)} style={{ ...inp, cursor: 'pointer' }}>{SUBSIDY_TYPES.map(t => <option key={t}>{t}</option>)}</select></div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
+                <div><label style={{ fontSize: 11, color: C.inkFaint, fontWeight: 600, display: 'block', marginBottom: 4 }}>CS担当者</label><select value={assignedTo} onChange={e => setAssignedTo(e.target.value)} style={{ ...inp, cursor: 'pointer' }}><option value="">未割当</option>{csUsers.map(u => <option key={u.id} value={u.id}>{u.name ?? u.email.split('@')[0]}（{u.email}）</option>)}</select></div>
               </div>
               <button onClick={handleManual} disabled={!name.trim() || saving} style={{ marginTop: 8, background: name.trim() && !saving ? C.accent : C.border, color: name.trim() && !saving ? '#fff' : C.inkFaint, border: 'none', borderRadius: 10, padding: '12px 24px', fontSize: 14, fontWeight: 700, cursor: name.trim() && !saving ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
                 {saving ? '登録中...' : '登録して申請管理を開始'}

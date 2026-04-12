@@ -55,6 +55,7 @@ export interface Application {
   score: number | null
   cs_name: string | null
   cs_email: string | null
+  assigned_to: string | null
   slack_channel: string | null
   ai_result: AiResult | null
   notes: string | null
