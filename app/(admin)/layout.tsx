@@ -31,6 +31,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     redirect('/login')
   }
 
+  // ユーザー表示名を取得
+  const { data: allowedUser } = await supabase
+    .from('allowed_users')
+    .select('name')
+    .eq('email', user.email ?? '')
+    .single()
+  const displayName = allowedUser?.name ?? user.email?.split('@')[0] ?? ''
+
   // 期限アラート
   const today = new Date()
   const in14Days = new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000)
@@ -71,7 +79,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <div style={{ width: 210, background: C.surface, borderRight: `1px solid ${C.border}`, padding: '20px 0', display: 'flex', flexDirection: 'column', gap: 2, position: 'sticky', top: 56, height: 'calc(100vh - 56px)', overflowY: 'auto' }}>
           <AdminNav />
           <div style={{ flex: 1 }} />
-          <UserMenu email={user.email ?? ''} />
+          <UserMenu email={user.email ?? ''} displayName={displayName} />
         </div>
 
         {/* メインコンテンツ */}

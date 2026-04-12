@@ -12,12 +12,12 @@ const C = {
   red: '#b83232', redBg: '#fdf0f0',
 } as const
 
-export default function UserMenu({ email }: { email: string }) {
+export default function UserMenu({ email, displayName }: { email: string; displayName: string }) {
   const [open, setOpen] = useState(false)
   const router = useRouter()
   const supabase = createClient()
-  const initial = email ? email[0].toUpperCase() : '?'
-  const name = email.split('@')[0]
+  const name = displayName || email.split('@')[0]
+  const initial = name[0].toUpperCase()
 
   async function handleLogout() {
     await supabase.auth.signOut()
