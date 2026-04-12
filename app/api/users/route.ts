@@ -22,10 +22,17 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const { id, is_active } = await req.json()
+  const body = await req.json()
+  const { id } = body
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
   const supabase = createServiceClient()
-  await supabase.from('allowed_users').update({ is_active }).eq('id', id)
+  const updates: Record<string, unknown> = {}
+  if (body.is_active !== undefined) updates.is_active = body.is_active
+  if (body.name !== undefined) updates.name = body.name
+  if (body.role !== undefined) updates.role = body.role
+  if (Object.keys(updates).length > 0) {
+    await supabase.from('allowed_users').update(updates).eq('id', id)
+  }
   return NextResponse.json({ success: true })
 }
 

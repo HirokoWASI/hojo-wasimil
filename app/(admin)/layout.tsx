@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import AdminNav from './AdminNav'
+import UserMenu from './UserMenu'
 
 const C = {
   bg: '#f5f4f0',
@@ -70,9 +71,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <div style={{ width: 210, background: C.surface, borderRight: `1px solid ${C.border}`, padding: '20px 0', display: 'flex', flexDirection: 'column', gap: 2, position: 'sticky', top: 56, height: 'calc(100vh - 56px)', overflowY: 'auto' }}>
           <AdminNav />
           <div style={{ flex: 1 }} />
-          <div style={{ padding: '12px 20px', borderTop: `1px solid ${C.border}`, fontSize: 11, color: C.inkFaint }}>
-            {user.email}
-          </div>
+          <UserMenu email={user.email ?? ''} />
         </div>
 
         {/* メインコンテンツ */}
