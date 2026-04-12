@@ -66,6 +66,7 @@ export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }
   const [csUsers, setCsUsers] = useState<{ id: string; name: string | null; email: string }[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
+  const [showArchived, setShowArchived] = useState(false)
   const [subTab, setSubTab] = useState<'info' | 'docs' | 'ai' | 'chat' | 'draft'>('info')
   const [uploadDocId, setUploadDocId] = useState<string | null>(null)
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
@@ -97,7 +98,25 @@ export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }
 
   useEffect(() => { fetch('/api/users').then(r => r.json()).then(d => setCsUsers(d.filter((u: any) => u.is_active))) }, [])
 
-  const client = apps.find(a => a.id === selId) ?? apps[0]
+  async function handleArchive(appId: string) {
+    await fetch('/api/application-actions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'archive', applicationId: appId }) })
+    setApps(prev => prev.map(a => a.id === appId ? { ...a, archived: true } as AppRow : a))
+    showToast('アーカイブしました')
+  }
+  async function handleUnarchive(appId: string) {
+    await fetch('/api/application-actions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'unarchive', applicationId: appId }) })
+    setApps(prev => prev.map(a => a.id === appId ? { ...a, archived: false } as AppRow : a))
+    showToast('復元しました')
+  }
+  async function handleDeleteApp(appId: string) {
+    if (!confirm('この案件を完全に削除しますか？関連する書類・チャット・診断ログもすべて削除されます。')) return
+    await fetch('/api/application-actions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete', applicationId: appId }) })
+    setApps(prev => prev.filter(a => a.id !== appId))
+    showToast('削除しました')
+  }
+
+  const activeApps = showArchived ? apps.filter(a => (a as any).archived) : apps.filter(a => !(a as any).archived)
+  const client = activeApps.find(a => a.id === selId) ?? activeApps[0]
   if (!client) return (
     <div style={{ maxWidth: 1200 }}>
       <div style={{ marginBottom: 24 }}>
@@ -297,19 +316,22 @@ export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }
           <div style={{ padding: '10px 14px', borderBottom: `1px solid ${C.border}`, background: C.surfaceAlt }}>
             <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="顧客名で検索..." style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6, padding: '7px 10px', fontSize: 12, fontFamily: 'inherit', outline: 'none', color: C.ink }} />
           </div>
-          {/* ステータスフィルタ */}
-          <div style={{ padding: '8px 14px', borderBottom: `1px solid ${C.border}`, display: 'flex', gap: 4, flexWrap: 'wrap' as const }}>
+          {/* フィルタ */}
+          <div style={{ padding: '8px 14px', borderBottom: `1px solid ${C.border}`, display: 'flex', gap: 4, flexWrap: 'wrap' as const, alignItems: 'center' }}>
             <button onClick={() => setStatusFilter(null)} style={{ background: !statusFilter ? C.ink : C.bg, color: !statusFilter ? '#fff' : C.inkFaint, border: 'none', borderRadius: 12, padding: '3px 10px', fontSize: 10, cursor: 'pointer', fontFamily: 'inherit', fontWeight: !statusFilter ? 700 : 400 }}>全て</button>
             {(['適格審査中', '書類準備中', '申請中', '採択待ち', '採択済'] as const).map(st => {
               const cfg = APP_STATUS_CFG[st]
-              const count = apps.filter(a => a.status === st).length
+              const count = activeApps.filter(a => a.status === st).length
               if (count === 0) return null
               return <button key={st} onClick={() => setStatusFilter(statusFilter === st ? null : st)} style={{ background: statusFilter === st ? cfg.bg : C.bg, color: statusFilter === st ? cfg.color : C.inkFaint, border: `1px solid ${statusFilter === st ? cfg.border : 'transparent'}`, borderRadius: 12, padding: '3px 8px', fontSize: 10, cursor: 'pointer', fontFamily: 'inherit', fontWeight: statusFilter === st ? 700 : 400 }}>{cfg.icon} {count}</button>
             })}
+            <button onClick={() => setShowArchived(!showArchived)} style={{ marginLeft: 'auto', background: showArchived ? C.ink : 'transparent', color: showArchived ? '#fff' : C.inkFaint, border: `1px solid ${showArchived ? C.ink : C.border}`, borderRadius: 12, padding: '3px 8px', fontSize: 10, cursor: 'pointer', fontFamily: 'inherit' }}>
+              {showArchived ? `📦 ${apps.filter(a => (a as any).archived).length}` : '📦'}
+            </button>
           </div>
           {/* グループ化リスト */}
           {(() => {
-            const filtered = filterBySearch(statusFilter ? apps.filter(a => a.status === statusFilter) : apps, searchQuery)
+            const filtered = filterBySearch(statusFilter ? activeApps.filter(a => a.status === statusFilter) : activeApps, searchQuery)
             const groups = groupByStatus(filtered)
             if (groups.length === 0) return <div style={{ padding: 20, textAlign: 'center', color: C.inkFaint, fontSize: 12 }}>該当する顧客がありません</div>
             return groups.map(group => {
@@ -368,6 +390,17 @@ export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }
                   {client.cs_name && <span style={{ fontSize: 12, color: C.inkFaint }}>担当: {client.cs_name}</span>}
                 </div>
               </div>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
+                {!(client as any).archived ? (
+                  <button onClick={() => handleArchive(client.id)} style={{ background: C.bg, color: C.inkFaint, border: `1px solid ${C.border}`, borderRadius: 6, padding: '4px 10px', fontSize: 10, cursor: 'pointer', fontFamily: 'inherit' }}>📦 アーカイブ</button>
+                ) : (
+                  <button onClick={() => handleUnarchive(client.id)} style={{ background: C.greenBg, color: C.green, border: `1px solid ${C.greenBorder}`, borderRadius: 6, padding: '4px 10px', fontSize: 10, cursor: 'pointer', fontFamily: 'inherit' }}>↩ 復元</button>
+                )}
+                <button onClick={() => handleDeleteApp(client.id)} style={{ background: C.redBg, color: C.red, border: `1px solid ${C.redBorder}`, borderRadius: 6, padding: '4px 10px', fontSize: 10, cursor: 'pointer', fontFamily: 'inherit' }}>🗑 削除</button>
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: 8 }}>
+              <div />
               {client.deadline && (
                 <div style={{ textAlign: 'right' as const }}>
                   <div style={{ fontSize: 11, color: C.inkFaint, marginBottom: 4 }}>申請期限</div>
