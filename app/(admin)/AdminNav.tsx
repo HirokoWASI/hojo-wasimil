@@ -16,6 +16,7 @@ const NAV = [
   { href: '/applications',   icon: '📋', label: '顧客プロセス管理' },
   { href: '/subsidy-lookup', icon: '🔍', label: '補助金管理' },
   { href: '/subsidy-collect', icon: '📡', label: '補助金情報収集' },
+  { href: '/users',           icon: '👥', label: 'ユーザー管理' },
 ]
 
 export default function AdminNav() {
