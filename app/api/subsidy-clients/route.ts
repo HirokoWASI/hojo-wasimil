@@ -2,6 +2,22 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { createClient as createSalesClient } from '@supabase/supabase-js'
 
+const SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN ?? ''
+
+async function createSlackChannel(name: string): Promise<string | null> {
+  if (!SLACK_BOT_TOKEN) return null
+  try {
+    const channelName = `portal-${name.toLowerCase().replace(/[^a-z0-9\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf]/g, '-').replace(/-+/g, '-').slice(0, 60)}`
+    const res = await fetch('https://slack.com/api/conversations.create', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${SLACK_BOT_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: channelName, is_private: false }),
+    })
+    const data = await res.json()
+    return data.ok ? `#${channelName}` : null
+  } catch { return null }
+}
+
 const SALES_SUPABASE_URL = process.env.SALES_SUPABASE_URL ?? 'https://bnqejljedwkmlkykdhcr.supabase.co'
 const SALES_SUPABASE_KEY = process.env.SALES_SUPABASE_ANON_KEY ?? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJucWVqbGplZHdrbWxreWtkaGNyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyMTI5NDcsImV4cCI6MjA5MDc4ODk0N30.sYscNcRoIBFbITzMNIfE0bW15UHBhQ3hYcgrExdus0E'
 
@@ -136,6 +152,8 @@ export async function POST(req: NextRequest) {
     if (appErr) return NextResponse.json({ error: appErr.message }, { status: 500 })
 
     await createRequiredDocs(supabase, app.id)
+    const slackChannel = await createSlackChannel(clientName)
+    if (slackChannel) await supabase.from('applications').update({ slack_channel: slackChannel }).eq('id', app.id)
 
     return NextResponse.json({ success: true, clientId: client.id, applicationId: app.id })
   }
@@ -178,6 +196,8 @@ export async function POST(req: NextRequest) {
   if (appErr) return NextResponse.json({ error: appErr.message }, { status: 500 })
 
   await createRequiredDocs(supabase, app.id)
+  const slackCh = await createSlackChannel(name)
+  if (slackCh) await supabase.from('applications').update({ slack_channel: slackCh }).eq('id', app.id)
 
   return NextResponse.json({ success: true, clientId: client.id, applicationId: app.id })
 }

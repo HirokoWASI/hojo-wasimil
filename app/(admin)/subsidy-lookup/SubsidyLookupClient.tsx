@@ -14,7 +14,18 @@ const C = {
   yellow: '#7a5c00', yellowBg: '#fdf8e8', yellowBorder: '#e8d490',
 } as const
 
-interface Program { id: string; name: string; short_name: string | null; organizer: string | null; description: string | null; official_url: string | null }
+interface GuidelinesJson {
+  subsidy_max?: string; subsidy_rate?: string; target_business?: string
+  exclusions?: string[]; prerequisites?: string[]
+  schedule?: Record<string, string>; application_flow?: string[]
+  eligible_solutions?: Record<string, string[]>
+  facility_limit?: string; faq_highlights?: string[]
+  contact?: Record<string, string>; documents?: Record<string, string>
+  briefing_videos?: { title: string; url: string }[]
+  pms_relevance?: string
+  [key: string]: unknown
+}
+interface Program { id: string; name: string; short_name: string | null; organizer: string | null; description: string | null; official_url: string | null; guidelines_json: GuidelinesJson | null }
 interface Round { id: string; program_id: string; round_name: string; application_start: string | null; application_end: string | null; grant_decision_date: string | null; is_current: boolean }
 interface ClientApp {
   id: string; client_id: string; subsidy_type: string; subsidy_frame: string | null
@@ -48,6 +59,7 @@ export default function SubsidyLookupClient() {
   const [loading, setLoading] = useState(true)
   const [showAddRound, setShowAddRound] = useState(false)
   const [newRound, setNewRound] = useState({ name: '', start: '', end: '' })
+  const [showDetails, setShowDetails] = useState(false)
 
   const loadPrograms = useCallback(async () => {
     const res = await fetch('/api/subsidy-programs')
@@ -116,6 +128,156 @@ export default function SubsidyLookupClient() {
             </div>
             {selProgram.official_url && <a href={selProgram.official_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: C.blue, background: C.blueBg, border: `1px solid ${C.blueBorder}`, borderRadius: 6, padding: '4px 10px', textDecoration: 'none', fontWeight: 600 }}>公式サイト ↗</a>}
           </div>
+
+          {/* 補助金詳細 */}
+          {selProgram.guidelines_json && (
+            <>
+              <button onClick={() => setShowDetails(!showDetails)} style={{ width: '100%', background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 20px', marginBottom: showDetails ? 0 : 16, borderBottomLeftRadius: showDetails ? 0 : 10, borderBottomRightRadius: showDetails ? 0 : 10, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>補助金詳細・対象ソリューション</span>
+                <span style={{ fontSize: 11, color: C.inkFaint }}>{showDetails ? '▲ 閉じる' : '▼ 詳細を表示'}</span>
+              </button>
+              {showDetails && (() => {
+                const g = selProgram.guidelines_json!
+                return (
+                  <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderTop: 'none', borderRadius: '0 0 12px 12px', padding: 20, marginBottom: 16 }}>
+                    {/* 基本情報 */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
+                      {g.subsidy_max && (
+                        <div style={{ background: C.accentBg, border: `1px solid ${C.accentBorder}`, borderRadius: 10, padding: '12px 16px' }}>
+                          <div style={{ fontSize: 10, color: C.inkFaint }}>補助上限</div>
+                          <div style={{ fontSize: 16, fontWeight: 800, color: C.accent }}>{g.subsidy_max}</div>
+                        </div>
+                      )}
+                      {g.subsidy_rate && (
+                        <div style={{ background: C.greenBg, border: `1px solid ${C.greenBorder}`, borderRadius: 10, padding: '12px 16px' }}>
+                          <div style={{ fontSize: 10, color: C.inkFaint }}>補助率</div>
+                          <div style={{ fontSize: 16, fontWeight: 800, color: C.green }}>{g.subsidy_rate}</div>
+                        </div>
+                      )}
+                      {g.facility_limit && (
+                        <div style={{ background: C.blueBg, border: `1px solid ${C.blueBorder}`, borderRadius: 10, padding: '12px 16px' }}>
+                          <div style={{ fontSize: 10, color: C.inkFaint }}>施設上限</div>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: C.blue }}>{g.facility_limit}</div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 対象事業者 */}
+                    {g.target_business && (
+                      <div style={{ marginBottom: 14 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4, color: C.ink }}>対象事業者</div>
+                        <div style={{ fontSize: 12, color: C.inkMid, lineHeight: 1.5 }}>{g.target_business}</div>
+                      </div>
+                    )}
+
+                    {/* 前提条件 */}
+                    {g.prerequisites && g.prerequisites.length > 0 && (
+                      <div style={{ marginBottom: 14 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4, color: C.ink }}>申請要件</div>
+                        {g.prerequisites.map((p, i) => (
+                          <div key={i} style={{ fontSize: 11, color: C.inkMid, padding: '3px 0', paddingLeft: 12, position: 'relative' as const }}>
+                            <span style={{ position: 'absolute' as const, left: 0 }}>・</span>{p}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* スケジュール */}
+                    {g.schedule && (
+                      <div style={{ marginBottom: 14 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4, color: C.ink }}>スケジュール</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                          {Object.entries(g.schedule).filter(([k]) => k !== 'note').map(([k, v]) => (
+                            <div key={k} style={{ background: C.bg, borderRadius: 8, padding: '8px 12px' }}>
+                              <div style={{ fontSize: 10, color: C.inkFaint }}>{k.replace(/_/g, ' ')}</div>
+                              <div style={{ fontSize: 11, fontWeight: 600, color: C.ink }}>{v}</div>
+                            </div>
+                          ))}
+                        </div>
+                        {g.schedule.note && <div style={{ fontSize: 10, color: C.inkFaint, marginTop: 4 }}>※ {g.schedule.note}</div>}
+                      </div>
+                    )}
+
+                    {/* PMS関連性 */}
+                    {g.pms_relevance && (
+                      <div style={{ background: C.accentBg, border: `1px solid ${C.accentBorder}`, borderRadius: 10, padding: '12px 16px', marginBottom: 14 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4, color: C.accent }}>PMS導入との関連</div>
+                        <div style={{ fontSize: 11, color: C.inkMid, lineHeight: 1.6 }}>{g.pms_relevance}</div>
+                      </div>
+                    )}
+
+                    {/* 対象ソリューション */}
+                    {g.eligible_solutions && (
+                      <div style={{ marginBottom: 14 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: C.ink }}>対象ソリューション</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+                          {Object.entries(g.eligible_solutions).map(([cat, items]) => (
+                            <div key={cat} style={{ background: C.bg, borderRadius: 10, padding: '10px 14px' }}>
+                              <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 4, color: C.ink }}>{cat}</div>
+                              {items.map((item, i) => {
+                                const isPms = item.includes('PMS') || item.includes('予約') || item.includes('サイトコントローラー')
+                                return (
+                                  <div key={i} style={{ fontSize: 10, color: isPms ? C.accent : C.inkMid, fontWeight: isPms ? 700 : 400, padding: '2px 0' }}>
+                                    {isPms ? '★ ' : '・ '}{item}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* FAQ */}
+                    {g.faq_highlights && g.faq_highlights.length > 0 && (
+                      <div style={{ marginBottom: 14 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4, color: C.ink }}>よくある質問（抜粋）</div>
+                        {g.faq_highlights.map((f, i) => (
+                          <div key={i} style={{ fontSize: 11, color: C.inkMid, padding: '4px 0 4px 12px', borderLeft: `2px solid ${C.border}`, marginBottom: 4 }}>{f}</div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* 資料リンク */}
+                    {g.documents && (
+                      <div style={{ marginBottom: 14 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6, color: C.ink }}>公募資料</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 6 }}>
+                          {Object.entries(g.documents).map(([name, url]) => (
+                            <a key={name} href={url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 10, color: C.blue, background: C.blueBg, border: `1px solid ${C.blueBorder}`, borderRadius: 6, padding: '4px 10px', textDecoration: 'none', fontWeight: 600 }}>
+                              {name} ↗
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 説明会動画 */}
+                    {g.briefing_videos && g.briefing_videos.length > 0 && (
+                      <div style={{ marginBottom: 14 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6, color: C.ink }}>説明会動画</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 6 }}>
+                          {g.briefing_videos.map((v, i) => (
+                            <a key={i} href={v.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 10, color: C.purple, background: C.purpleBg, border: `1px solid ${C.purpleBorder}`, borderRadius: 6, padding: '4px 10px', textDecoration: 'none', fontWeight: 600 }}>
+                              {v.title} ↗
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 問い合わせ */}
+                    {g.contact && (
+                      <div style={{ background: C.bg, borderRadius: 10, padding: '10px 14px', fontSize: 11, color: C.inkMid }}>
+                        <span style={{ fontWeight: 700, color: C.ink }}>問い合わせ: </span>
+                        {Object.entries(g.contact).map(([k, v]) => `${k}: ${v}`).join(' / ')}
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
+            </>
+          )}
 
           {/* KPI */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>

@@ -42,7 +42,7 @@ function ChatPanel({ applicationId, csName }: { applicationId: string; csName: s
 
   useEffect(() => {
     loadMessages()
-    const interval = setInterval(loadMessages, 5000)
+    const interval = setInterval(loadMessages, 3000)
     return () => clearInterval(interval)
   }, [loadMessages])
 

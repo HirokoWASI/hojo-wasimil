@@ -536,49 +536,26 @@ export default function ProcessClient({ initialApps }: { initialApps: AppRow[] }
                 {client.docs.length === 0 ? (
                   <div style={{ padding: 24, fontSize: 13, color: C.inkFaint, textAlign: 'center' as const }}>書類が登録されていません</div>
                 ) : (
-                  <table style={{ width: '100%', borderCollapse: 'collapse' as const }}>
-                    <thead>
-                      <tr style={{ background: C.bg }}>
-                        {['書類名', '必須', 'ステータス', '提出日', '備考', '操作'].map(h => (
-                          <th key={h} style={{ padding: '10px 16px', textAlign: 'left' as const, fontSize: 11, color: C.inkFaint, fontWeight: 600, textTransform: 'uppercase' as const, whiteSpace: 'nowrap' as const }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {client.docs.map(doc => (
-                        <tr key={doc.id} style={{ borderTop: `1px solid ${C.border}`, background: doc.status === '差し戻し' ? '#fff5f5' : 'transparent' }}>
-                          <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 600 }}>{doc.name}</td>
-                          <td style={{ padding: '12px 16px' }}>
-                            <span style={{ fontSize: 11, color: doc.required ? C.red : C.inkFaint }}>{doc.required ? '必須' : '任意'}</span>
-                          </td>
-                          <td style={{ padding: '12px 16px' }}><DocBadge status={doc.status} /></td>
-                          <td style={{ padding: '12px 16px', fontSize: 12, color: C.inkFaint, fontFamily: 'monospace' }}>
-                            {doc.submitted_at ?? '—'}
-                          </td>
-                          <td style={{ padding: '12px 16px', maxWidth: 180 }}>
-                            {doc.note ? (
-                              <span style={{ fontSize: 11, color: C.red, background: C.redBg, padding: '2px 8px', borderRadius: 6 }}>💬 {doc.note}</span>
-                            ) : (
-                              <span style={{ fontSize: 11, color: C.inkFaint }}>—</span>
-                            )}
-                          </td>
-                          <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' as const }}>
-                            <div style={{ display: 'flex', gap: 6 }}>
-                              {doc.status === '提出済' && (
-                                <button onClick={() => handleApprove(doc.id)} style={{ background: C.greenBg, color: C.green, border: `1px solid ${C.greenBorder}`, borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>✓ 承認</button>
-                              )}
-                              {(doc.status === '提出済' || doc.status === '確認中') && (
-                                <button onClick={() => { setShowReturnModal(doc.id); setReturnNote(doc.note ?? '') }} style={{ background: C.redBg, color: C.red, border: `1px solid ${C.redBorder}`, borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>↩ 差し戻し</button>
-                              )}
-                              {doc.status === '未提出' && (
-                                <button onClick={() => openAlertModal('reminder')} style={{ background: C.bg, color: C.inkMid, border: `1px solid ${C.border}`, borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>📧 催促</button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 14 }}>
+                    {client.docs.map(doc => (
+                      <div key={doc.id} style={{ background: doc.status === '差し戻し' ? C.redBg : C.bg, border: `1px solid ${doc.status === '差し戻し' ? C.redBorder : C.border}`, borderRadius: 10, padding: '12px 16px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: doc.note ? 6 : 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: 13, fontWeight: 600 }}>{doc.name}</span>
+                            {doc.required && <span style={{ fontSize: 9, color: C.red, background: '#fff', padding: '1px 5px', borderRadius: 4, border: `1px solid ${C.redBorder}`, fontWeight: 700 }}>必須</span>}
+                            <DocBadge status={doc.status} />
+                          </div>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            {doc.status === '提出済' && <button onClick={() => handleApprove(doc.id)} style={{ background: C.greenBg, color: C.green, border: `1px solid ${C.greenBorder}`, borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>✓ 承認</button>}
+                            {(doc.status === '提出済' || doc.status === '確認中') && <button onClick={() => { setShowReturnModal(doc.id); setReturnNote(doc.note ?? '') }} style={{ background: C.redBg, color: C.red, border: `1px solid ${C.redBorder}`, borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>↩ 差し戻し</button>}
+                            {doc.status === '未提出' && <button onClick={() => openAlertModal('reminder')} style={{ background: C.surface, color: C.inkMid, border: `1px solid ${C.border}`, borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>📧 催促</button>}
+                          </div>
+                        </div>
+                        {doc.note && <div style={{ fontSize: 11, color: C.red, background: '#fff', borderRadius: 6, padding: '6px 10px', border: `1px solid ${C.redBorder}`, marginTop: 4 }}>↩ {doc.note}</div>}
+                        {doc.submitted_at && <div style={{ fontSize: 10, color: C.inkFaint, marginTop: 4 }}>提出日: {doc.submitted_at}</div>}
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
 

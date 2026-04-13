@@ -151,7 +151,7 @@ export default async function DashboardPage() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: C.bg }}>
-              {['施設名', '補助金種別', '申請額', 'ステータス', 'スコア', '残日数'].map(h => (
+              {['施設名', '補助金種別', '申請額', 'ステータス', '担当', '残日数'].map(h => (
                 <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, color: C.inkFaint, fontWeight: 600, textTransform: 'uppercase' }}>{h}</th>
               ))}
             </tr>
@@ -169,8 +169,8 @@ export default async function DashboardPage() {
                   <td style={{ padding: '12px 16px', fontSize: 12, color: C.inkFaint }}>{a.subsidy_type}</td>
                   <td style={{ padding: '12px 16px', fontSize: 13, fontFamily: 'monospace', color: C.accent, fontWeight: 700 }}>{a.amount ?? '—'}</td>
                   <td style={{ padding: '12px 16px' }}><AppBadge status={a.status} /></td>
-                  <td style={{ padding: '12px 16px', minWidth: 100 }}>
-                    {a.score != null ? <ScoreBar score={a.score} /> : <span style={{ color: C.inkFaint }}>—</span>}
+                  <td style={{ padding: '12px 16px', fontSize: 12, color: C.inkFaint }}>
+                    {a.cs_name ?? '—'}
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 12, color: daysLeft != null && daysLeft < 14 ? C.red : C.inkFaint }}>
                     {daysLeft != null ? `残${daysLeft}日` : '—'}

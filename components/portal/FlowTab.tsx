@@ -128,7 +128,8 @@ export function FlowTab({ application, documents, screeningLog, onChatClick, onR
                 {/* ===== Step 2: 書類準備をインライン表示 ===== */}
                 {i === 1 && (isActive || isDone) && (
                   <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {/* gBizID確認 */}
+                    {/* セクション: 確認チェック */}
+                    <div style={{ fontSize: 11, fontWeight: 700, color: C.inkMid, marginBottom: 4 }}>確認事項</div>
                     {gbizDoc && (
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: gbizDoc.status === '承認済' ? C.greenBg : C.bg, border: `1px solid ${gbizDoc.status === '承認済' ? C.greenBorder : C.border}`, borderRadius: 8, padding: '10px 14px' }}>
                         <span style={{ fontSize: 13, fontWeight: 600 }}>gBizIDプライム</span>
@@ -138,15 +139,19 @@ export function FlowTab({ application, documents, screeningLog, onChatClick, onR
                       </div>
                     )}
 
-                    {/* 見積書（AZOO発行） */}
+                    {/* セクション: AZOO作成 */}
+                    <div style={{ fontSize: 11, fontWeight: 700, color: C.inkMid, marginTop: 8, marginBottom: 4 }}>AZOO担当者が作成</div>
                     {azooDoc && (
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: azooDoc.status === '承認済' ? C.greenBg : C.blueBg, border: `1px solid ${azooDoc.status === '承認済' ? C.greenBorder : C.blueBorder}`, borderRadius: 8, padding: '10px 14px' }}>
-                        <span style={{ fontSize: 13, fontWeight: 600 }}>見積書（AZOO発行）</span>
+                        <span style={{ fontSize: 13, fontWeight: 600 }}>見積書</span>
                         <span style={{ fontSize: 12, fontWeight: 700, color: azooDoc.status === '承認済' ? C.green : C.blue }}>
                           {azooDoc.status === '承認済' ? '✓ 発行済' : '担当者が作成中'}
                         </span>
                       </div>
                     )}
+
+                    {/* セクション: お客様準備 */}
+                    <div style={{ fontSize: 11, fontWeight: 700, color: C.inkMid, marginTop: 8, marginBottom: 4 }}>お客様にご準備いただく書類</div>
 
                     {/* 顧客が準備する書類 */}
                     {customerDocs.map(doc => {

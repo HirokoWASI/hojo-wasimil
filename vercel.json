@@ -7,6 +7,14 @@
     {
       "path": "/api/cron/collect-subsidies",
       "schedule": "0 0 * * 1"
+    },
+    {
+      "path": "/api/cron/sync-sales",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/check-guidelines",
+      "schedule": "0 0 * * 3"
     }
   ]
 }
